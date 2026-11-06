@@ -1,0 +1,1944 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Children System | Church Attendance System</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #f5f7fb;
+      --card: #ffffff;
+      --text: #18212f;
+      --muted: #667085;
+      --primary: #1d4ed8;
+      --primary-dark: #163ea9;
+      --success: #15803d;
+      --danger: #dc2626;
+      --warning: #d97706;
+      --border: #e5e7eb;
+      --shadow: 0 10px 30px rgba(15, 23, 42, 0.08);
+      --radius: 18px;
+    }
+
+    body {
+      font-family: Arial, Helvetica, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.5;
+    }
+
+    .page {
+      max-width: 1280px;
+      margin: 0 auto;
+      padding: 24px;
+    }
+
+    .topbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-bottom: 24px;
+    }
+
+    .title h1 {
+      font-size: 1.8rem;
+      margin-bottom: 4px;
+    }
+
+    .title p {
+      color: var(--muted);
+      font-size: 0.95rem;
+    }
+
+    .btn-row {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .btn {
+      border: none;
+      padding: 12px 16px;
+      border-radius: 12px;
+      cursor: pointer;
+      font-weight: 700;
+      font-size: 0.95rem;
+      text-decoration: none;
+      display: inline-block;
+      transition: 0.2s ease;
+    }
+
+    .btn:hover {
+      transform: translateY(-2px);
+    }
+
+    .btn-primary {
+      background: var(--primary);
+      color: #fff;
+    }
+
+    .btn-primary:hover { background: var(--primary-dark); }
+    .btn-success { background: var(--success); color: #fff; }
+    .btn-danger { background: var(--danger); color: #fff; }
+    .btn-warning { background: var(--warning); color: #fff; }
+    .btn-light {
+      background: #eef2ff;
+      color: #1e3a8a;
+    }
+
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(6, 1fr);
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 18px;
+    }
+
+    .stat-card h3 {
+      color: var(--muted);
+      font-size: 0.9rem;
+      font-weight: 600;
+      margin-bottom: 8px;
+    }
+
+    .stat-card .value {
+      font-size: 1.7rem;
+      font-weight: 800;
+    }
+
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+
+    .grid-3 {
+      display: grid;
+      grid-template-columns: 1.1fr 0.9fr 1fr;
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+
+    .section-title {
+      font-size: 1.05rem;
+      font-weight: 700;
+      margin-bottom: 14px;
+    }
+
+    form {
+      display: grid;
+      gap: 12px;
+    }
+
+    .field label {
+      display: block;
+      margin-bottom: 6px;
+      font-size: 0.92rem;
+      font-weight: 600;
+    }
+
+    .field input,
+    .field select,
+    .field textarea {
+      width: 100%;
+      padding: 12px 14px;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      outline: none;
+      font-size: 0.95rem;
+      background: #fff;
+      font-family: inherit;
+    }
+
+    .field textarea {
+      min-height: 90px;
+      resize: vertical;
+    }
+
+    .toolbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 14px;
+      flex-wrap: wrap;
+    }
+
+    .search-input {
+      max-width: 330px;
+      width: 100%;
+      padding: 12px 14px;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: white;
+    }
+
+    .record-card {
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 14px;
+      margin-bottom: 12px;
+      background: #fff;
+    }
+
+    .record-card h4 {
+      margin-bottom: 6px;
+      font-size: 1rem;
+    }
+
+    .muted {
+      color: var(--muted);
+    }
+
+    .empty-state {
+      color: var(--muted);
+      padding: 10px 0;
+    }
+
+    .pill {
+      display: inline-block;
+      padding: 6px 10px;
+      border-radius: 999px;
+      font-size: 0.8rem;
+      font-weight: 700;
+    }
+
+    .pill.present {
+      background: #dcfce7;
+      color: #166534;
+    }
+
+    .pill.absent {
+      background: #fee2e2;
+      color: #991b1b;
+    }
+
+    .pill.open {
+      background: #dbeafe;
+      color: #1d4ed8;
+    }
+
+    .pill.closed {
+      background: #e5e7eb;
+      color: #374151;
+    }
+
+    .notice {
+      padding: 14px;
+      border-radius: 14px;
+      border: 1px solid var(--border);
+      background: #fff7ed;
+      color: #9a3412;
+      margin-bottom: 12px;
+      font-weight: 600;
+    }
+
+    .mini-list > div {
+      padding: 12px 0;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .report-print {
+      display: none;
+    }
+
+    .report-header {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      margin-bottom: 18px;
+      border-bottom: 2px solid #000;
+      padding-bottom: 12px;
+    }
+
+    .report-logo {
+      width: 78px;
+      height: 78px;
+      object-fit: contain;
+      border: 1px solid #ccc;
+      border-radius: 8px;
+      background: #fff;
+      flex-shrink: 0;
+    }
+
+    .report-title-wrap h2 {
+      margin: 0;
+      font-size: 1.35rem;
+      color: #000;
+    }
+
+    .report-title-wrap p {
+      margin: 3px 0;
+      color: #222;
+      font-size: 0.95rem;
+    }
+
+    .report-summary {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+      margin: 18px 0;
+    }
+
+    .summary-box {
+      border: 1px solid #000;
+      padding: 10px;
+      border-radius: 8px;
+      background: #fff;
+      color: #000;
+    }
+
+    .summary-box strong {
+      display: block;
+      margin-bottom: 6px;
+      font-size: 0.9rem;
+    }
+
+    .report-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 12px;
+    }
+
+    .report-table th,
+    .report-table td {
+      border: 1px solid #000;
+      padding: 10px;
+      text-align: left;
+      font-size: 0.92rem;
+      color: #000;
+    }
+
+    .report-table th {
+      background: #f2f2f2;
+    }
+
+    .report-footer {
+      margin-top: 28px;
+      display: flex;
+      justify-content: space-between;
+      gap: 20px;
+    }
+
+    .sign-box {
+      width: 45%;
+      margin-top: 24px;
+    }
+
+    .sign-line {
+      border-top: 1px solid #000;
+      margin-top: 40px;
+      padding-top: 6px;
+      font-size: 0.92rem;
+      color: #000;
+    }
+
+    .import-box {
+      margin-top: 18px;
+      padding-top: 18px;
+      border-top: 1px dashed var(--border);
+    }
+
+    .import-status {
+      margin-top: 12px;
+      padding: 12px 14px;
+      border-radius: 12px;
+      font-size: 0.92rem;
+      display: none;
+    }
+
+    .import-status.success {
+      display: block;
+      background: #ecfdf3;
+      color: #166534;
+      border: 1px solid #bbf7d0;
+    }
+
+    .import-status.error {
+      display: block;
+      background: #fef2f2;
+      color: #991b1b;
+      border: 1px solid #fecaca;
+    }
+
+    @media (max-width: 1100px) {
+      .stats { grid-template-columns: repeat(3, 1fr); }
+      .grid-3 { grid-template-columns: 1fr; }
+    }
+
+    @media (max-width: 980px) {
+      .grid-2 { grid-template-columns: 1fr; }
+      .report-summary { grid-template-columns: repeat(2, 1fr); }
+    }
+
+    @media (max-width: 700px) {
+      .page { padding: 16px; }
+      .stats { grid-template-columns: repeat(2, 1fr); }
+    }
+
+    @media (max-width: 520px) {
+      .stats { grid-template-columns: 1fr; }
+      .title h1 { font-size: 1.45rem; }
+      .report-summary { grid-template-columns: 1fr; }
+      .report-header,
+      .report-footer { flex-direction: column; }
+      .sign-box { width: 100%; }
+      .btn { width: 100%; text-align: center; }
+    }
+
+    @media print {
+      body * {
+        visibility: hidden;
+      }
+
+      #kidsPrintArea,
+      #kidsPrintArea * {
+        visibility: visible;
+      }
+
+      #kidsPrintArea {
+        display: block !important;
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 100%;
+        background: #fff;
+        color: #000;
+        padding: 24px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <div class="topbar">
+      <div class="title">
+        <h1>Children System</h1>
+        <p>Separate records and attendance system for children in the church.</p>
+      </div>
+
+      <div class="btn-row">
+        <a href="main.html" class="btn btn-light">Back to Main System</a>
+      </div>
+    </div>
+
+    <section class="stats">
+      <div class="card stat-card">
+        <h3>Total Children</h3>
+        <div class="value" id="totalKids">0</div>
+      </div>
+      <div class="card stat-card">
+        <h3>Total Boys</h3>
+        <div class="value" id="totalBoys">0</div>
+      </div>
+      <div class="card stat-card">
+        <h3>Total Girls</h3>
+        <div class="value" id="totalGirls">0</div>
+      </div>
+      <div class="card stat-card">
+        <h3>Present Today</h3>
+        <div class="value" id="kidsPresentToday">0</div>
+      </div>
+      <div class="card stat-card">
+        <h3>Absentees</h3>
+        <div class="value" id="kidsAbsentToday">0</div>
+      </div>
+      <div class="card stat-card">
+        <h3>Birthdays This Month</h3>
+        <div class="value" id="kidsBirthdaysMonth">0</div>
+      </div>
+    </section>
+
+    <section class="grid-3">
+      <div class="card">
+        <div class="section-title" id="kidsFormTitle">Register Child</div>
+        <form id="kidsForm">
+          <div class="field">
+            <label>Full Name</label>
+            <input type="text" id="kidName" required />
+          </div>
+
+          <div class="field">
+            <label>Gender</label>
+            <select id="kidGender" required>
+              <option value="">Select gender</option>
+              <option>Male</option>
+              <option>Female</option>
+            </select>
+          </div>
+
+          <div class="field">
+            <label>Class / Group</label>
+            <input type="text" id="kidClass" placeholder="Children class or group" />
+          </div>
+
+          <div class="field">
+            <label>Date of Birth</label>
+            <input type="date" id="kidDob" />
+          </div>
+
+          <div class="field">
+            <label>Parent / Guardian Name</label>
+            <input type="text" id="kidGuardian" />
+          </div>
+
+          <div class="field">
+            <label>Parent / Guardian Phone</label>
+            <input type="text" id="kidPhone" placeholder="0551234567 or +233551234567" />
+          </div>
+
+          <div class="field">
+            <label>Address</label>
+            <input type="text" id="kidAddress" />
+          </div>
+
+          <div class="field">
+            <label>Medical / Special Note</label>
+            <textarea id="kidNote" placeholder="Optional note"></textarea>
+          </div>
+
+          <div class="field">
+            <label>Select File</label>
+            <input type="file" id="kidFile" />
+          </div>
+
+          <div class="btn-row">
+            <button type="submit" class="btn btn-primary" id="saveKidBtn">Save Child Record</button>
+            <button type="button" class="btn btn-light" id="cancelEditBtn" style="display:none;">Cancel Edit</button>
+          </div>
+        </form>
+
+        <div class="import-box">
+          <div class="section-title">Bulk Excel Registration</div>
+
+          <div class="field">
+            <label>Select Excel / CSV File</label>
+            <input type="file" id="bulkExcelFile" accept=".xlsx,.xls,.csv" />
+          </div>
+
+          <div class="btn-row">
+            <button type="button" class="btn btn-light" id="downloadKidsTemplate">Download Template</button>
+            <button type="button" class="btn btn-success" id="importKidsExcel">Import Excel Records</button>
+          </div>
+
+          <div id="importStatus" class="import-status"></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="toolbar">
+          <div class="section-title">Search Children Records</div>
+          <input type="text" id="kidsSearchInput" class="search-input" placeholder="Search by child name, guardian phone, or parent/guardian member..." />
+        </div>
+        <div id="kidsSearchResults" class="empty-state">Search results will appear here.</div>
+      </div>
+
+      <div class="card">
+        <div class="section-title">Birthday Reminder</div>
+        <div id="todayBirthdayNotice"></div>
+
+        <div class="section-title" style="margin-top:16px;">Upcoming Birthdays</div>
+        <div id="upcomingBirthdaysList" class="mini-list">
+          <p class="empty-state">No upcoming birthdays.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="card" style="margin-bottom:24px;">
+      <div class="toolbar">
+        <div class="section-title">Children Attendance Control</div>
+        <span id="kidsAttendancePill" class="pill closed">Closed</span>
+      </div>
+
+      <div class="btn-row">
+        <button class="btn btn-success" id="openKidsAttendance">Open Attendance</button>
+        <button class="btn btn-danger" id="closeKidsAttendance">Close Attendance</button>
+        <button class="btn btn-light" id="markAllKids">Mark All Present</button>
+       <button class="btn btn-primary" id="printKidsReport">Print Children Report</button>
+      </div>
+
+      <div class="muted" style="margin-top:12px;">
+        <strong>Opened:</strong> <span id="openedTimeText">N/A</span> |
+        <strong>Closed:</strong> <span id="closedTimeText">N/A</span>
+      </div>
+    </section>
+
+    <section class="card" style="margin-bottom:24px;">
+      <div class="section-title">Children Attendance</div>
+      <div id="kidsAttendanceTable" class="empty-state">No children available.</div>
+    </section>
+
+    <section class="card">
+      <div class="section-title">Stored Children Records</div>
+      <div id="kidsRecordsList" class="empty-state">No children records saved yet.</div>
+    </section>
+
+    <div id="kidsPrintArea" class="report-print"></div>
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="supabase-config.js"></script>
+
+<script>
+(() => {
+    "use strict";
+
+    const CHURCH_NAME = "ABELENKPE SEVENTH-DAY ADVENTIST";
+    const CHURCH_LOGO = "sda logo.png";
+    const supabase = window.supabaseClient;
+    const STORAGE_BUCKET = "church-records";
+
+    let kidsRecords = [];
+    let kidsAttendance = [];
+    let kidsAttendanceOpen = false;
+    let kidsOpenedAt = "";
+    let kidsClosedAt = "";
+    let kidsAttendanceHistory = [];
+    let currentKidsSession = null;
+    let editingKidId = null;
+    let churchMembers = [];
+
+    const kidsForm = document.getElementById("kidsForm");
+    const kidsSearchInput = document.getElementById("kidsSearchInput");
+    const cancelEditBtn = document.getElementById("cancelEditBtn");
+    const importStatus = document.getElementById("importStatus");
+
+    function localDateISO(date = new Date()) {
+        const y = date.getFullYear();
+        const m = String(date.getMonth() + 1).padStart(2, "0");
+        const d = String(date.getDate()).padStart(2, "0");
+        return `${y}-${m}-${d}`;
+    }
+
+    function showImportStatus(message, type = "success") {
+        importStatus.className = "import-status " + type;
+        importStatus.textContent = message;
+    }
+
+    function formatDisplayDate(value) {
+        if (!value) return "N/A";
+        const date = new Date(value);
+        return isNaN(date) ? "N/A" : date.toLocaleDateString(undefined, {
+            year: "numeric",
+            month: "long",
+            day: "numeric"
+        });
+    }
+
+    function formatDateTime(value) {
+        if (!value) return "N/A";
+        const date = new Date(value);
+        return isNaN(date) ? "N/A" : date.toLocaleString();
+    }
+
+    function formatBirthdayShort(value) {
+        if (!value) return "";
+        const date = new Date(value + "T00:00:00");
+        return isNaN(date) ? "" : date.toLocaleDateString(undefined, {
+            month: "long",
+            day: "numeric"
+        });
+    }
+
+    function excelDateToISO(value) {
+        if (!value) return null;
+
+        if (typeof value === "number" && window.XLSX) {
+            const parsed = XLSX.SSF.parse_date_code(value);
+            if (!parsed) return null;
+
+            return `${parsed.y}-${String(parsed.m).padStart(2, "0")}-${String(parsed.d).padStart(2, "0")}`;
+        }
+
+        const date = new Date(value);
+        if (isNaN(date)) return null;
+
+        return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+    }
+
+    function normalizeGender(value) {
+        const gender = String(value || "").trim().toLowerCase();
+
+        if (["male", "m", "boy"].includes(gender)) return "Male";
+        if (["female", "f", "girl"].includes(gender)) return "Female";
+
+        return "";
+    }
+
+    function normalizeWhatsAppNumber(phone) {
+        if (!phone) return "";
+
+        let digits = String(phone).replace(/\D/g, "");
+
+        if (digits.length === 10 && digits.startsWith("0")) {
+            digits = "233" + digits.slice(1);
+        } else if (digits.length === 9) {
+            digits = "233" + digits;
+        }
+
+        return digits.length === 12 && digits.startsWith("233") ? digits : "";
+    }
+
+    function getCellValue(row, keys = []) {
+        for (const key of keys) {
+            if (
+                row[key] !== undefined &&
+                row[key] !== null &&
+                String(row[key]).trim()
+            ) {
+                return String(row[key]).trim();
+            }
+        }
+
+        return "";
+    }
+
+    function mapChild(row) {
+        return {
+            id: row.id,
+            name: row.full_name || "",
+            gender: row.gender || "",
+            kidClass: row.kid_class || "",
+            dob: row.dob || "",
+            guardian: row.guardian || "",
+            phone: row.phone || "",
+            address: row.address || "",
+            note: row.note || "",
+            fileName: row.file_name || "",
+            filePath: row.file_path || "",
+            linkedMemberId: row.linked_member_id || "",
+            linkedMemberName: "",
+            linkedMemberNumber: ""
+        };
+    }
+
+    function getLinkedMemberData(phone) {
+        const normalized = normalizeWhatsAppNumber(phone);
+
+        const member = churchMembers.find(m =>
+            normalizeWhatsAppNumber(m.phone || "") === normalized
+        );
+
+        return member ? {
+            linkedMemberId: member.id,
+            linkedMemberName: member.full_name || "",
+            linkedMemberNumber: member.member_number || ""
+        } : {
+            linkedMemberId: null,
+            linkedMemberName: "",
+            linkedMemberNumber: ""
+        };
+    }
+
+    async function requireAdminSession() {
+        if (!supabase) {
+            throw new Error("Supabase client is not initialized. Check supabase-config.js.");
+        }
+
+        const { data: sessionData, error: sessionError } =
+            await supabase.auth.getSession();
+
+        if (sessionError) throw sessionError;
+
+        const user = sessionData?.session?.user;
+
+        if (!user) {
+            alert("Your admin session has expired. Please sign in again from the main system.");
+            window.location.href = "main.html";
+            throw new Error("Admin session required.");
+        }
+
+        const { data: profile, error } = await supabase
+            .from("profiles")
+            .select("role")
+            .eq("id", user.id)
+            .maybeSingle();
+
+        if (error) throw error;
+
+        if (!profile || profile.role !== "admin") {
+            alert("Access denied. Only church administrators can manage children records.");
+            window.location.href = "main.html";
+            throw new Error("Administrator role required.");
+        }
+    }
+
+    async function loadChurchMembers() {
+        const { data, error } = await supabase
+            .from("members")
+            .select("id, full_name, member_number, phone")
+            .eq("is_active", true);
+
+        if (error) throw error;
+
+        churchMembers = data || [];
+    }
+
+    async function loadChildren() {
+        const { data, error } = await supabase
+            .from("children")
+            .select("*")
+            .eq("is_active", true)
+            .order("full_name");
+
+        if (error) throw error;
+
+        kidsRecords = (data || []).map(row => {
+            const member = churchMembers.find(
+                m => m.id === row.linked_member_id
+            );
+
+            return {
+                ...mapChild(row),
+                linkedMemberName: member?.full_name || "",
+                linkedMemberNumber: member?.member_number || ""
+            };
+        });
+    }
+
+    async function loadKidsSession() {
+        const today = localDateISO();
+
+        const { data, error } = await supabase
+            .from("attendance_sessions")
+            .select("*")
+            .eq("attendance_type", "children")
+            .eq("session_date", today)
+            .maybeSingle();
+
+        if (error) throw error;
+
+        currentKidsSession = data || null;
+        kidsAttendanceOpen = !!data?.is_open;
+        kidsOpenedAt = data?.opened_at || "";
+        kidsClosedAt = data?.closed_at || "";
+        kidsAttendance = [];
+
+        if (data?.id) {
+            const result = await supabase
+                .from("child_attendance")
+                .select("id, child_id, present, marked_at")
+                .eq("session_id", data.id);
+
+            if (result.error) throw result.error;
+
+            kidsAttendance = (result.data || []).map(a => ({
+                id: a.id,
+                kidId: a.child_id,
+                present: a.present
+            }));
+        }
+    }
+
+    async function loadKidsHistory() {
+        const { data, error } = await supabase
+            .from("child_attendance_history")
+            .select("*")
+            .order("session_date", { ascending: false });
+
+        if (error) throw error;
+
+        kidsAttendanceHistory = data || [];
+    }
+
+    async function loadAllData() {
+        await requireAdminSession();
+
+        // Load members first so linked-member information is available.
+        await loadChurchMembers();
+
+        // Load and display children independently of attendance history.
+        await loadChildren();
+        renderAll();
+
+        // Attendance data is loaded after the children board is displayed.
+        try {
+            await loadKidsSession();
+            await loadKidsHistory();
+            renderAll();
+        } catch (error) {
+            console.error("Children attendance data could not load:", error);
+            renderAll();
+        }
+    }
+
+    function attendanceFor(kidId) {
+        return kidsAttendance.find(a => a.kidId === kidId);
+    }
+
+    function updateStats() {
+        const total = kidsRecords.length;
+
+        const boys = kidsRecords.filter(k =>
+            (k.gender || "").toLowerCase() === "male"
+        ).length;
+
+        const girls = kidsRecords.filter(k =>
+            (k.gender || "").toLowerCase() === "female"
+        ).length;
+
+        const month = new Date().getMonth() + 1;
+
+        const birthdays = kidsRecords.filter(k =>
+            k.dob && Number(k.dob.slice(5, 7)) === month
+        ).length;
+
+        const present = kidsAttendance.filter(a => a.present).length;
+
+        document.getElementById("totalKids").textContent = total;
+        document.getElementById("totalBoys").textContent = boys;
+        document.getElementById("totalGirls").textContent = girls;
+        document.getElementById("kidsBirthdaysMonth").textContent = birthdays;
+
+        document.getElementById("kidsPresentToday").textContent =
+            kidsAttendanceOpen ? present : 0;
+
+        document.getElementById("kidsAbsentToday").textContent =
+            kidsAttendanceOpen ? Math.max(total - present, 0) : 0;
+    }
+
+    function getTodayBirthdays() {
+        const today = localDateISO().slice(5);
+
+        return kidsRecords.filter(k =>
+            k.dob && k.dob.slice(5) === today
+        );
+    }
+
+    function getUpcomingBirthdays(daysAhead = 30) {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        return kidsRecords
+            .filter(k => k.dob)
+            .map(k => {
+                const parts = k.dob.split("-").map(Number);
+
+                let next = new Date(
+                    today.getFullYear(),
+                    parts[1] - 1,
+                    parts[2]
+                );
+
+                if (next < today) {
+                    next = new Date(
+                        today.getFullYear() + 1,
+                        parts[1] - 1,
+                        parts[2]
+                    );
+                }
+
+                return {
+                    ...k,
+                    diffDays: Math.round((next - today) / 86400000)
+                };
+            })
+            .filter(k => k.diffDays <= daysAhead)
+            .sort((a, b) => a.diffDays - b.diffDays);
+    }
+
+    function renderBirthdayReminder() {
+        const wrap = document.getElementById("todayBirthdayNotice");
+        const list = getTodayBirthdays();
+
+        if (!list.length) {
+            wrap.innerHTML = '<p class="empty-state">No birthday today.</p>';
+            return;
+        }
+
+        wrap.innerHTML = list.map(k => {
+            const phone = normalizeWhatsAppNumber(k.phone);
+
+            const msg = `Happy birthday ${k.name}. We celebrate you and pray for God’s blessings upon your life.`;
+
+            return `
+                <div class="notice">
+                    🎉 Today is <strong>${escapeHtml(k.name)}</strong>'s birthday.
+                    <div class="btn-row" style="margin-top:10px;">
+                        ${phone
+                            ? `<a href="https://wa.me/${phone}?text=${encodeURIComponent(msg)}" target="_blank" rel="noopener" class="btn btn-success">Send Birthday Message</a>`
+                            : '<span class="muted">No guardian phone available.</span>'}
+                    </div>
+                </div>`;
+        }).join("");
+    }
+
+    function renderUpcomingBirthdays() {
+        const wrap = document.getElementById("upcomingBirthdaysList");
+        const list = getUpcomingBirthdays();
+
+        wrap.innerHTML = list.length
+            ? list.map(k => `
+                <div>
+                    <strong>${escapeHtml(k.name)}</strong>
+                    <p class="muted">
+                        ${formatBirthdayShort(k.dob)} • In ${k.diffDays} day${k.diffDays === 1 ? "" : "s"}
+                    </p>
+                </div>`).join("")
+            : '<p class="empty-state">No upcoming birthdays.</p>';
+    }
+
+    function escapeHtml(value) {
+        return String(value ?? "").replace(/[&<>"']/g, c => ({
+            "&": "&amp;",
+            "<": "&lt;",
+            ">": "&gt;",
+            '"': "&quot;",
+            "'": "&#39;"
+        }[c]));
+    }
+
+    function renderKidsRecords() {
+        const wrap = document.getElementById("kidsRecordsList");
+
+        if (!kidsRecords.length) {
+            wrap.innerHTML = '<p class="empty-state">No children records saved yet.</p>';
+            return;
+        }
+
+        wrap.innerHTML = kidsRecords.map(k => {
+            const phone = normalizeWhatsAppNumber(k.phone);
+
+            const msg = `Hello, this is from church. We are checking on ${k.name}. God bless you.`;
+
+            return `
+                <div class="record-card">
+                    <h4>${escapeHtml(k.name)}</h4>
+                    <p class="muted">Gender: ${escapeHtml(k.gender || "N/A")}</p>
+                    <p class="muted">Class: ${escapeHtml(k.kidClass || "N/A")}</p>
+                    <p class="muted">DOB: ${escapeHtml(k.dob || "N/A")}</p>
+                    <p class="muted">Guardian: ${escapeHtml(k.guardian || "N/A")}</p>
+                    <p class="muted">Guardian Phone: ${escapeHtml(k.phone || "N/A")}</p>
+                    <p class="muted">
+                        Parent/Guardian in Church Records:
+                        ${escapeHtml(k.linkedMemberName
+                            ? `${k.linkedMemberName} (${k.linkedMemberNumber || "Member"})`
+                            : "No matching member found")}
+                    </p>
+                    <p class="muted">Address: ${escapeHtml(k.address || "N/A")}</p>
+                    <p class="muted">Note: ${escapeHtml(k.note || "N/A")}</p>
+
+                    <div class="btn-row" style="margin-top:10px;">
+                        ${k.filePath
+                            ? `<button class="btn btn-light" onclick="downloadKidFile('${k.id}')">Download File</button>`
+                            : ""}
+
+                        ${phone
+                            ? `<a class="btn btn-success" href="https://wa.me/${phone}?text=${encodeURIComponent(msg)}" target="_blank" rel="noopener">WhatsApp Parent</a>`
+                            : ""}
+
+                        <button class="btn btn-warning" onclick="editKidRecord('${k.id}')">Edit</button>
+                        <button class="btn btn-danger" onclick="deleteKidRecord('${k.id}')">Delete</button>
+                    </div>
+                </div>`;
+        }).join("");
+    }
+
+    function phoneMatchesSearch(search, phone) {
+        const a = String(search || "").replace(/\D/g, "");
+        const b = String(phone || "").replace(/\D/g, "");
+
+        if (!a || !b) return false;
+
+        const a233 = a.startsWith("0")
+            ? "233" + a.slice(1)
+            : a.length === 9
+                ? "233" + a
+                : a;
+
+        return b.includes(a) ||
+            b.includes(a233) ||
+            b.includes(a233.startsWith("233") ? "0" + a233.slice(3) : a);
+    }
+
+    function renderSearchResults() {
+        const raw = kidsSearchInput.value.trim();
+        const query = raw.toLowerCase();
+        const wrap = document.getElementById("kidsSearchResults");
+
+        if (!query) {
+            wrap.innerHTML = '<p class="empty-state">Search results will appear here.</p>';
+            return;
+        }
+
+        const filtered = kidsRecords.filter(k => {
+            const member = churchMembers.find(m => m.id === k.linkedMemberId);
+
+            return [
+                k.name,
+                k.guardian,
+                k.linkedMemberName,
+                k.phone,
+                member?.phone
+            ].some(v => String(v || "").toLowerCase().includes(query)) ||
+                phoneMatchesSearch(raw, k.phone) ||
+                phoneMatchesSearch(raw, member?.phone);
+        });
+
+        wrap.innerHTML = filtered.length
+            ? filtered.map(k => {
+                const phone = normalizeWhatsAppNumber(k.phone);
+
+                return `
+                    <div class="record-card">
+                        <h4>${escapeHtml(k.name)}</h4>
+                        <p class="muted">
+                            Gender: ${escapeHtml(k.gender || "N/A")} |
+                            Class: ${escapeHtml(k.kidClass || "N/A")}
+                        </p>
+                        <p class="muted">
+                            Guardian: ${escapeHtml(k.guardian || "N/A")} |
+                            Phone: ${escapeHtml(k.phone || "N/A")}
+                        </p>
+                        <p class="muted">
+                            Linked member: ${escapeHtml(k.linkedMemberName || "No matching member found")}
+                        </p>
+                        ${phone
+                            ? `<a class="btn btn-success" href="https://wa.me/${phone}" target="_blank" rel="noopener">WhatsApp Guardian</a>`
+                            : ""}
+                    </div>`;
+            }).join("")
+            : '<p class="empty-state">No matching child record found.</p>';
+    }
+
+    function renderAttendanceMeta() {
+        const pill = document.getElementById("kidsAttendancePill");
+
+        pill.textContent = kidsAttendanceOpen ? "Open" : "Closed";
+        pill.className = `pill ${kidsAttendanceOpen ? "open" : "closed"}`;
+
+        document.getElementById("openedTimeText").textContent =
+            kidsOpenedAt ? formatDateTime(kidsOpenedAt) : "N/A";
+
+        document.getElementById("closedTimeText").textContent =
+            kidsClosedAt ? formatDateTime(kidsClosedAt) : "N/A";
+    }
+
+    function renderKidsAttendance() {
+        const wrap = document.getElementById("kidsAttendanceTable");
+
+        if (!kidsRecords.length) {
+            wrap.innerHTML = '<p class="empty-state">No children available.</p>';
+            return;
+        }
+
+        wrap.innerHTML = kidsRecords.map(k => {
+            const a = attendanceFor(k.id);
+            const phone = normalizeWhatsAppNumber(k.phone);
+
+            const msg = `Hello, ${k.name} was absent from today's children attendance. Please let us know how the child is doing. God bless you.`;
+
+            return `
+                <div class="record-card">
+                    <h4>${escapeHtml(k.name)}</h4>
+                    <p class="muted">Class: ${escapeHtml(k.kidClass || "N/A")}</p>
+                    <p class="muted">Guardian: ${escapeHtml(k.guardian || "N/A")}</p>
+
+                    <p style="margin:8px 0">
+                        <span class="pill ${a?.present ? "present" : "absent"}">
+                            ${a?.present ? "Present" : "Absent"}
+                        </span>
+                    </p>
+
+                    <div class="btn-row" style="margin-top:10px">
+                        <button
+                            class="btn ${a?.present ? "btn-light" : "btn-success"}"
+                            onclick="toggleKidAttendance('${k.id}')"
+                            ${kidsAttendanceOpen ? "" : "disabled"}>
+                            ${a?.present ? "Undo" : "Mark Present"}
+                        </button>
+
+                        ${!a?.present && !kidsAttendanceOpen && phone
+                            ? `<a class="btn btn-warning" href="https://wa.me/${phone}?text=${encodeURIComponent(msg)}" target="_blank" rel="noopener">Message Parent</a>`
+                            : ""}
+                    </div>
+                </div>`;
+        }).join("");
+    }
+
+    function renderAll() {
+        updateStats();
+        renderBirthdayReminder();
+        renderUpcomingBirthdays();
+        renderKidsRecords();
+        renderSearchResults();
+        renderAttendanceMeta();
+        renderKidsAttendance();
+    }
+
+    async function uploadChildFile(file, childId) {
+        const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+        const path = `children/${childId}/${Date.now()}-${safeName}`;
+
+        const { error } = await supabase.storage
+            .from(STORAGE_BUCKET)
+            .upload(path, file, { upsert: false });
+
+        if (error) throw error;
+
+        return {
+            file_path: path,
+            file_name: file.name
+        };
+    }
+
+    async function removeOldChildFile(path) {
+        if (!path) return;
+
+        const { error } = await supabase.storage
+            .from(STORAGE_BUCKET)
+            .remove([path]);
+
+        if (error) {
+            console.warn("Could not remove old child file:", error.message);
+        }
+    }
+
+    window.downloadKidFile = async function(id) {
+        const kid = kidsRecords.find(k => k.id === id);
+
+        if (!kid?.filePath) return;
+
+        const { data, error } = await supabase.storage
+            .from(STORAGE_BUCKET)
+            .createSignedUrl(kid.filePath, 60);
+
+        if (error) {
+            return alert("Unable to create file link: " + error.message);
+        }
+
+        window.open(data.signedUrl, "_blank", "noopener");
+    };
+
+    kidsForm.addEventListener("submit", async e => {
+        e.preventDefault();
+
+        const saveBtn = document.getElementById("saveKidBtn");
+        saveBtn.disabled = true;
+
+        const wasEditing = Boolean(editingKidId);
+
+        try {
+            const name = document.getElementById("kidName").value.trim();
+            const gender = document.getElementById("kidGender").value;
+            const kidClass = document.getElementById("kidClass").value.trim();
+            const dob = document.getElementById("kidDob").value || null;
+            const guardianInput = document.getElementById("kidGuardian").value.trim();
+            const rawPhone = document.getElementById("kidPhone").value.trim();
+            const phone = rawPhone ? normalizeWhatsAppNumber(rawPhone) : "";
+            const address = document.getElementById("kidAddress").value.trim();
+            const note = document.getElementById("kidNote").value.trim();
+            const file = document.getElementById("kidFile").files[0];
+
+            if (!name) {
+                throw new Error("Please enter the child's full name.");
+            }
+
+            if (rawPhone && !phone) {
+                throw new Error("Enter a valid Ghana phone number, e.g. 0551234567.");
+            }
+
+            const linked = getLinkedMemberData(phone);
+
+            const payload = {
+                full_name: name,
+                gender,
+                kid_class: kidClass || null,
+                dob,
+                guardian: guardianInput || linked.linkedMemberName || null,
+                phone: phone || null,
+                linked_member_id: linked.linkedMemberId,
+                address: address || null,
+                note: note || null
+            };
+
+            let childId = editingKidId;
+            let oldPath = "";
+
+            if (wasEditing) {
+                const existing = kidsRecords.find(k => k.id === editingKidId);
+                oldPath = existing?.filePath || "";
+
+                const { error } = await supabase
+                    .from("children")
+                    .update(payload)
+                    .eq("id", editingKidId);
+
+                if (error) throw error;
+            } else {
+                const { data, error } = await supabase
+                    .from("children")
+                    .insert(payload)
+                    .select("id")
+                    .single();
+
+                if (error) throw error;
+
+                childId = data.id;
+            }
+
+            // Refresh the board after the database save.
+            await loadChildren();
+            renderAll();
+
+            // File upload is handled separately so an upload issue
+            // does not hide a successfully saved child record.
+            if (file) {
+                try {
+                    const uploaded = await uploadChildFile(file, childId);
+
+                    const { error } = await supabase
+                        .from("children")
+                        .update(uploaded)
+                        .eq("id", childId);
+
+                    if (error) throw error;
+
+                    if (oldPath) {
+                        await removeOldChildFile(oldPath);
+                    }
+
+                    await loadChildren();
+                    renderAll();
+                } catch (uploadError) {
+                    console.error("Child file upload failed:", uploadError);
+                    alert(
+                        "The child record was saved, but the file could not be uploaded: " +
+                        uploadError.message
+                    );
+                }
+            }
+
+            resetFormState();
+
+            alert(
+                wasEditing
+                    ? "Child record updated successfully."
+                    : "Child registered successfully."
+            );
+
+        } catch (error) {
+            console.error("Child save failed:", error);
+            alert(error.message || "Could not save child record.");
+        } finally {
+            saveBtn.disabled = false;
+        }
+    });
+
+    function resetFormState() {
+        editingKidId = null;
+
+        document.getElementById("kidsFormTitle").textContent = "Register Child";
+        document.getElementById("saveKidBtn").textContent = "Save Child Record";
+
+        cancelEditBtn.style.display = "none";
+        kidsForm.reset();
+    }
+
+    cancelEditBtn.addEventListener("click", resetFormState);
+    kidsSearchInput.addEventListener("input", renderSearchResults);
+
+    window.editKidRecord = function(id) {
+        const k = kidsRecords.find(x => x.id === id);
+        if (!k) return;
+
+        document.getElementById("kidName").value = k.name || "";
+        document.getElementById("kidGender").value = k.gender || "";
+        document.getElementById("kidClass").value = k.kidClass || "";
+        document.getElementById("kidDob").value = k.dob || "";
+        document.getElementById("kidGuardian").value = k.guardian || "";
+        document.getElementById("kidPhone").value = k.phone || "";
+        document.getElementById("kidAddress").value = k.address || "";
+        document.getElementById("kidNote").value = k.note || "";
+
+        editingKidId = id;
+
+        document.getElementById("kidsFormTitle").textContent = "Edit Child Record";
+        document.getElementById("saveKidBtn").textContent = "Update Child Record";
+
+        cancelEditBtn.style.display = "inline-block";
+
+        window.scrollTo({
+            top: 0,
+            behavior: "smooth"
+        });
+    };
+
+    window.deleteKidRecord = async function(id) {
+        if (!confirm("Move this child record to the recycle bin?")) return;
+
+        try {
+            const kid = kidsRecords.find(k => k.id === id);
+            if (!kid) return;
+
+            const { error: binError } = await supabase
+                .from("recycle_bin")
+                .insert({
+                    record_type: "child",
+                    original_record_id: String(kid.id),
+                    record_data: {
+                        id: kid.id,
+                        full_name: kid.name,
+                        gender: kid.gender,
+                        dob: kid.dob,
+                        kid_class: kid.kidClass,
+                        guardian: kid.guardian,
+                        phone: kid.phone,
+                        linked_member_id: kid.linkedMemberId,
+                        file_name: kid.fileName,
+                        file_path: kid.filePath,
+                        address: kid.address,
+                        note: kid.note,
+                        is_active: true
+                    }
+                });
+
+            if (binError) throw binError;
+
+            const { error } = await supabase
+                .from("children")
+                .update({ is_active: false })
+                .eq("id", id);
+
+            if (error) throw error;
+
+            await loadChildren();
+            renderAll();
+
+            alert("Child moved to the recycle bin successfully.");
+
+        } catch (error) {
+            alert(error.message || "Could not delete child.");
+        }
+    };
+
+    async function getOrCreateKidsSession(openSession) {
+        const today = localDateISO();
+
+        const { data: existing, error: findError } = await supabase
+            .from("attendance_sessions")
+            .select("*")
+            .eq("attendance_type", "children")
+            .eq("session_date", today)
+            .maybeSingle();
+
+        if (findError) throw findError;
+
+        if (existing) {
+            if (openSession && !existing.is_open) {
+                const { data, error } = await supabase
+                    .from("attendance_sessions")
+                    .update({
+                        is_open: true,
+                        opened_at: new Date().toISOString(),
+                        closed_at: null
+                    })
+                    .eq("id", existing.id)
+                    .select("*")
+                    .single();
+
+                if (error) throw error;
+
+                currentKidsSession = data;
+                return data;
+            }
+
+            currentKidsSession = existing;
+            return existing;
+        }
+
+        const { data, error } = await supabase
+            .from("attendance_sessions")
+            .insert({
+                attendance_type: "children",
+                session_date: today,
+                is_open: openSession,
+                opened_at: openSession ? new Date().toISOString() : null
+            })
+            .select("*")
+            .single();
+
+        if (error) throw error;
+
+        currentKidsSession = data;
+        return data;
+    }
+
+    async function ensureKidsAttendanceRows(reset = false) {
+        if (!currentKidsSession?.id) {
+            throw new Error("No children attendance session exists.");
+        }
+
+        const rows = kidsRecords.map(k => ({
+            session_id: currentKidsSession.id,
+            child_id: k.id,
+            present: false,
+            marked_at: null
+        }));
+
+        if (rows.length) {
+            const { error } = await supabase
+                .from("child_attendance")
+                .upsert(rows, {
+                    onConflict: "session_id,child_id",
+                    ignoreDuplicates: !reset
+                });
+
+            if (error) throw error;
+        }
+
+        if (reset && rows.length) {
+            const { error } = await supabase
+                .from("child_attendance")
+                .update({
+                    present: false,
+                    marked_at: null
+                })
+                .eq("session_id", currentKidsSession.id);
+
+            if (error) throw error;
+        }
+    }
+
+    async function refreshAttendance() {
+        if (!currentKidsSession?.id) {
+            kidsAttendance = [];
+            return;
+        }
+
+        const { data, error } = await supabase
+            .from("child_attendance")
+            .select("id,child_id,present")
+            .eq("session_id", currentKidsSession.id);
+
+        if (error) throw error;
+
+        kidsAttendance = (data || []).map(a => ({
+            id: a.id,
+            kidId: a.child_id,
+            present: a.present
+        }));
+    }
+
+    window.toggleKidAttendance = async function(id) {
+        if (!kidsAttendanceOpen || !currentKidsSession?.id) {
+            return alert("Attendance is closed.");
+        }
+
+        try {
+            let row = attendanceFor(id);
+
+            if (!row) {
+                const { data, error } = await supabase
+                    .from("child_attendance")
+                    .insert({
+                        session_id: currentKidsSession.id,
+                        child_id: id,
+                        present: true,
+                        marked_at: new Date().toISOString()
+                    })
+                    .select("id,child_id,present")
+                    .single();
+
+                if (error) throw error;
+
+                row = {
+                    id: data.id,
+                    kidId: data.child_id,
+                    present: data.present
+                };
+
+                kidsAttendance.push(row);
+
+            } else {
+                const next = !row.present;
+
+                const { error } = await supabase
+                    .from("child_attendance")
+                    .update({
+                        present: next,
+                        marked_at: next ? new Date().toISOString() : null
+                    })
+                    .eq("id", row.id);
+
+                if (error) throw error;
+
+                row.present = next;
+            }
+
+            renderAll();
+
+        } catch (error) {
+            alert(error.message || "Could not update attendance.");
+        }
+    };
+
+    document.getElementById("openKidsAttendance").onclick = async () => {
+        try {
+            await getOrCreateKidsSession(true);
+            await ensureKidsAttendanceRows(true);
+            await loadKidsSession();
+            renderAll();
+
+        } catch (error) {
+            alert(error.message || "Could not open attendance.");
+        }
+    };
+
+    document.getElementById("closeKidsAttendance").onclick = async () => {
+        if (!currentKidsSession?.id || !kidsAttendanceOpen) {
+            return alert("Attendance is already closed.");
+        }
+
+        try {
+            const closedAt = new Date().toISOString();
+
+            const { error } = await supabase
+                .from("attendance_sessions")
+                .update({
+                    is_open: false,
+                    closed_at: closedAt
+                })
+                .eq("id", currentKidsSession.id);
+
+            if (error) throw error;
+
+            await refreshAttendance();
+
+            const snapshot = kidsRecords.map(k => {
+                const a = attendanceFor(k.id);
+
+                return {
+                    kidId: k.id,
+                    fullName: k.name,
+                    gender: k.gender || "",
+                    memberClass: k.kidClass || "",
+                    guardian: k.guardian || "",
+                    phone: k.phone || "",
+                    linkedMemberName: k.linkedMemberName || "",
+                    linkedMemberNumber: k.linkedMemberNumber || "",
+                    relationshipLabel: k.linkedMemberName ? "Parent/Guardian" : "",
+                    present: !!a?.present,
+                    type: "Child"
+                };
+            });
+
+            const { error: historyError } = await supabase
+                .from("child_attendance_history")
+                .upsert({
+                    session_date: currentKidsSession.session_date,
+                    opened_at: kidsOpenedAt || currentKidsSession.opened_at,
+                    closed_at: closedAt,
+                    records: snapshot
+                }, {
+                    onConflict: "session_date"
+                });
+
+            if (historyError) throw historyError;
+
+            await loadKidsSession();
+            await loadKidsHistory();
+            renderAll();
+
+        } catch (error) {
+            alert(error.message || "Could not close attendance.");
+        }
+    };
+
+    document.getElementById("markAllKids").onclick = async () => {
+        if (!kidsAttendanceOpen || !currentKidsSession?.id) {
+            return alert("Open attendance first.");
+        }
+
+        try {
+            const rows = kidsRecords.map(k => ({
+                session_id: currentKidsSession.id,
+                child_id: k.id,
+                present: true,
+                marked_at: new Date().toISOString()
+            }));
+
+            if (rows.length) {
+                const { error } = await supabase
+                    .from("child_attendance")
+                    .upsert(rows, {
+                        onConflict: "session_id,child_id"
+                    });
+
+                if (error) throw error;
+            }
+
+            await refreshAttendance();
+            renderAll();
+
+        } catch (error) {
+            alert(error.message || "Could not mark all children present.");
+        }
+    };
+
+    function buildKidsReport() {
+        const present = kidsAttendance.filter(a => a.present).length;
+        const total = kidsRecords.length;
+
+        const male = kidsRecords.filter(k =>
+            (k.gender || "").toLowerCase() === "male"
+        ).length;
+
+        const female = kidsRecords.filter(k =>
+            (k.gender || "").toLowerCase() === "female"
+        ).length;
+
+        const rows = kidsRecords.map((k, i) => `
+            <tr>
+                <td>${i + 1}</td>
+                <td>${escapeHtml(k.name)}</td>
+                <td>${escapeHtml(k.gender || "N/A")}</td>
+                <td>${escapeHtml(k.kidClass || "N/A")}</td>
+                <td>${escapeHtml(k.guardian || "N/A")}</td>
+                <td>${escapeHtml(k.phone || "N/A")}</td>
+                <td>${escapeHtml(k.linkedMemberName || "Not linked")}</td>
+                <td>${attendanceFor(k.id)?.present ? "Present" : "Absent"}</td>
+            </tr>
+        `).join("");
+
+        document.getElementById("kidsPrintArea").innerHTML = `
+            <div class="report-header">
+                <img src="${CHURCH_LOGO}" class="report-logo" alt="Church Logo">
+                <div class="report-title-wrap">
+                    <h2>${CHURCH_NAME}</h2>
+                    <p><strong>Official Children Report</strong></p>
+                    <p>Date: ${formatDisplayDate(new Date())}</p>
+                </div>
+            </div>
+
+            <div class="report-summary">
+                <div class="summary-box"><strong>Total Children</strong>${total}</div>
+                <div class="summary-box"><strong>Total Boys</strong>${male}</div>
+                <div class="summary-box"><strong>Total Girls</strong>${female}</div>
+                <div class="summary-box"><strong>Total Present</strong>${present}</div>
+                <div class="summary-box"><strong>Total Absentees</strong>${Math.max(total - present, 0)}</div>
+                <div class="summary-box"><strong>Attendance Status</strong>${kidsAttendanceOpen ? "Open" : "Closed"}</div>
+                <div class="summary-box"><strong>Time Opened</strong>${formatDateTime(kidsOpenedAt)}</div>
+                <div class="summary-box"><strong>Time Closed</strong>${formatDateTime(kidsClosedAt)}</div>
+            </div>
+
+            <table class="report-table">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Full Name</th>
+                        <th>Gender</th>
+                        <th>Class</th>
+                        <th>Guardian</th>
+                        <th>Phone</th>
+                        <th>Linked Member</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>${rows}</tbody>
+            </table>
+
+            <div class="report-footer">
+                <div class="sign-box"><div class="sign-line">Prepared By</div></div>
+                <div class="sign-box"><div class="sign-line">Authorized Signature</div></div>
+            </div>`;
+    }
+
+    document.getElementById("printKidsReport").onclick = () => {
+        buildKidsReport();
+        window.print();
+    };
+
+    document.getElementById("downloadKidsTemplate").onclick = () => {
+        const data = [{
+            "Full Name": "Ama Boateng",
+            "Gender": "Female",
+            "Class / Group": "Children Class A",
+            "Date of Birth": "2017-05-14",
+            "Parent / Guardian Name": "Mrs Boateng",
+            "Parent / Guardian Phone": "0240000000",
+            "Address": "Accra",
+            "Medical / Special Note": "None"
+        }];
+
+        const ws = XLSX.utils.json_to_sheet(data);
+        const wb = XLSX.utils.book_new();
+
+        XLSX.utils.book_append_sheet(wb, ws, "Kids Template");
+        XLSX.writeFile(wb, "kids_bulk_registration_template.xlsx");
+    };
+
+    document.getElementById("importKidsExcel").onclick = () => {
+        const file = document.getElementById("bulkExcelFile").files[0];
+
+        if (!file) {
+            return showImportStatus("Please select an Excel or CSV file first.", "error");
+        }
+
+        const reader = new FileReader();
+
+        reader.onload = async e => {
+            try {
+                const wb = XLSX.read(new Uint8Array(e.target.result), {
+                    type: "array"
+                });
+
+                const sheet = wb.Sheets[wb.SheetNames[0]];
+                const rows = XLSX.utils.sheet_to_json(sheet, { defval: "" });
+
+                if (!rows.length) {
+                    return showImportStatus("The selected file is empty.", "error");
+                }
+
+                const payload = [];
+                const seen = new Set();
+
+                for (const row of rows) {
+                    const name = getCellValue(row, [
+                        "Full Name", "Name", "FullName", "full name", "name"
+                    ]);
+
+                    const rawGender = getCellValue(row, ["Gender", "gender"]);
+
+                    const rawPhone = getCellValue(row, [
+                        "Parent / Guardian Phone",
+                        "Phone",
+                        "Guardian Phone",
+                        "parent / guardian phone"
+                    ]);
+
+                    const phone = rawPhone
+                        ? normalizeWhatsAppNumber(rawPhone)
+                        : "";
+
+                    if (!name || (rawPhone && !phone)) continue;
+
+                    const linked = getLinkedMemberData(phone);
+
+                    const guardian =
+                        getCellValue(row, [
+                            "Parent / Guardian Name",
+                            "Guardian",
+                            "Parent Name",
+                            "guardian"
+                        ]) || linked.linkedMemberName;
+
+                    const duplicateKey = (name + "|" + guardian).toLowerCase();
+
+                    if (
+                        seen.has(duplicateKey) ||
+                        kidsRecords.some(k =>
+                            (k.name + "|" + (k.guardian || "")).toLowerCase() === duplicateKey
+                        )
+                    ) {
+                        continue;
+                    }
+
+                    seen.add(duplicateKey);
+
+                    payload.push({
+                        full_name: name,
+                        gender: normalizeGender(rawGender) || null,
+                        kid_class: getCellValue(row, [
+                            "Class / Group", "Class", "Group", "class / group"
+                        ]) || null,
+                        dob: excelDateToISO(getCellValue(row, [
+                            "Date of Birth", "DOB", "Birth Date", "date of birth"
+                        ])),
+                        guardian: guardian || null,
+                        phone: phone || null,
+                        linked_member_id: linked.linkedMemberId,
+                        address: getCellValue(row, ["Address", "address"]) || null,
+                        note: getCellValue(row, [
+                            "Medical / Special Note",
+                            "Note",
+                            "Medical Note",
+                            "medical / special note"
+                        ]) || null
+                    });
+                }
+
+                if (!payload.length) {
+                    return showImportStatus(
+                        "No new records were imported. Check missing names, invalid phone numbers or duplicates.",
+                        "error"
+                    );
+                }
+
+                const { data, error } = await supabase
+                    .from("children")
+                    .insert(payload)
+                    .select("id");
+
+                if (error) throw error;
+
+                await loadChildren();
+                renderAll();
+
+                showImportStatus(
+                    `${data.length} child record(s) imported successfully. ${rows.length - data.length} row(s) skipped because of missing details, invalid phone numbers or duplicates.`,
+                    "success"
+                );
+
+                document.getElementById("bulkExcelFile").value = "";
+
+            } catch (error) {
+                console.error(error);
+                showImportStatus(
+                    error.message || "Import failed. Check the Excel file and try again.",
+                    "error"
+                );
+            }
+        };
+
+        reader.readAsArrayBuffer(file);
+    };
+
+    async function startChildrenPage() {
+        try {
+            if (!supabase || !window.supabaseReady) {
+                throw new Error(
+                    "Supabase is not ready. Check that supabase-config.js loads before this page script."
+                );
+            }
+
+            await loadAllData();
+
+            if (currentKidsSession?.is_open) {
+                await ensureKidsAttendanceRows(false);
+                await refreshAttendance();
+                renderAll();
+            }
+
+        } catch (error) {
+            console.error("Children System initialization failed:", error);
+
+            document.getElementById("kidsRecordsList").innerHTML =
+                `<p class="empty-state">Could not load children data: ${escapeHtml(error.message || "Unknown error")}</p>`;
+
+            alert(
+                "Children System could not connect: " +
+                (error.message || "Unknown error")
+            );
+        }
+    }
+
+    startChildrenPage();
+
+})();
+</script>
+</body>
+</html>

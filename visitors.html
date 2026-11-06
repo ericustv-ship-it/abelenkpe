@@ -1,0 +1,835 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Church Visitors Page</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    :root {
+      --bg: #f5f7fb;
+      --card: #ffffff;
+      --text: #18212f;
+      --muted: #667085;
+      --primary: #1d4ed8;
+      --primary-dark: #163ea9;
+      --success: #15803d;
+      --danger: #dc2626;
+      --warning: #d97706;
+      --border: #e5e7eb;
+      --shadow: 0 10px 30px rgba(15, 23, 42, 0.08);
+      --radius: 18px;
+    }
+
+    body {
+      font-family: Arial, Helvetica, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.5;
+      padding: 24px;
+    }
+
+    .topbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 24px;
+      flex-wrap: wrap;
+    }
+
+    .title h1 {
+      font-size: 1.7rem;
+      margin-bottom: 4px;
+    }
+
+    .title p {
+      color: var(--muted);
+      font-size: 0.95rem;
+    }
+
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 18px;
+    }
+
+    .stat-card h3 {
+      color: var(--muted);
+      font-size: 0.92rem;
+      font-weight: 600;
+      margin-bottom: 8px;
+    }
+
+    .stat-card .value {
+      font-size: 1.9rem;
+      font-weight: 800;
+    }
+
+    .section-title {
+      font-size: 1.05rem;
+      font-weight: 700;
+      margin-bottom: 14px;
+    }
+
+    form {
+      display: grid;
+      gap: 12px;
+    }
+
+    .field label {
+      display: block;
+      margin-bottom: 6px;
+      font-size: 0.92rem;
+      font-weight: 600;
+    }
+
+    .field input,
+    .field select,
+    .field textarea {
+      width: 100%;
+      padding: 12px 14px;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      outline: none;
+      font-size: 0.95rem;
+      background: #fff;
+      font-family: inherit;
+    }
+
+    .field textarea {
+      min-height: 90px;
+      resize: vertical;
+    }
+
+    .btn-row {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-top: 12px;
+    }
+
+    .btn {
+      border: none;
+      padding: 12px 16px;
+      border-radius: 12px;
+      cursor: pointer;
+      font-weight: 700;
+      font-size: 0.95rem;
+      text-decoration: none;
+      display: inline-block;
+    }
+
+    .btn-primary {
+      background: var(--primary);
+      color: #fff;
+    }
+
+    .btn-primary:hover {
+      background: var(--primary-dark);
+    }
+
+    .btn-success {
+      background: var(--success);
+      color: #fff;
+    }
+
+    .btn-danger {
+      background: var(--danger);
+      color: #fff;
+    }
+
+    .btn-warning {
+      background: var(--warning);
+      color: #fff;
+    }
+
+    .btn-light {
+      background: #eef2ff;
+      color: #1e3a8a;
+    }
+
+    .search-input {
+      width: 100%;
+      padding: 12px 14px;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: white;
+      margin-bottom: 14px;
+    }
+
+    .visitor-card {
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 14px;
+      margin-bottom: 12px;
+      background: #fff;
+    }
+
+    .visitor-card h4 {
+      margin-bottom: 6px;
+      font-size: 1rem;
+    }
+
+    .muted {
+      color: var(--muted);
+    }
+
+    .record-item {
+      padding: 12px 0;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .pill {
+      display: inline-block;
+      padding: 6px 10px;
+      border-radius: 999px;
+      font-size: 0.8rem;
+      font-weight: 700;
+      margin-top: 8px;
+    }
+
+    .pill.regular {
+      background: #dcfce7;
+      color: #166534;
+    }
+
+    .pill.returning {
+      background: #fef3c7;
+      color: #92400e;
+    }
+
+    .pill.new {
+      background: #dbeafe;
+      color: #1d4ed8;
+    }
+
+    .pill.followup {
+      background: #fee2e2;
+      color: #991b1b;
+    }
+
+    @media (max-width: 980px) {
+      .stats {
+        grid-template-columns: repeat(2, 1fr);
+      }
+
+      .grid-2 {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media (max-width: 600px) {
+      .stats {
+        grid-template-columns: 1fr;
+      }
+
+      .title h1 {
+        font-size: 1.35rem;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="topbar">
+    <div class="title">
+      <h1>Church Visitors Page</h1>
+      <p>Track visitors, identify weekly visitors, and follow up those who need attention.</p>
+    </div>
+
+    <div class="btn-row">
+      <a href="main.html" class="btn btn-light">🏠 Back to Main System</a>
+    </div>
+  </div>
+
+  <section class="stats">
+    <div class="card stat-card">
+      <h3>Total Visitors</h3>
+      <div class="value" id="totalVisitors">0</div>
+    </div>
+    <div class="card stat-card">
+      <h3>Visitors This Week</h3>
+      <div class="value" id="visitorsThisWeek">0</div>
+    </div>
+    <div class="card stat-card">
+      <h3>First-Time This Week</h3>
+      <div class="value" id="firstTimeThisWeek">0</div>
+    </div>
+    <div class="card stat-card">
+      <h3>Follow Up Needed</h3>
+      <div class="value" id="followUpCount">0</div>
+    </div>
+  </section>
+
+  <div class="grid-2">
+    <div class="card">
+      <div class="section-title">Register Visitor</div>
+      <form id="visitorForm">
+        <div class="field">
+          <label>Full Name</label>
+          <input type="text" id="visitorName" required />
+        </div>
+
+        <div class="field">
+          <label>Phone Number</label>
+          <input type="text" id="visitorPhone" required />
+        </div>
+
+        <div class="field">
+          <label>Gender</label>
+          <select id="visitorGender" required>
+            <option value="">Select gender</option>
+            <option>Male</option>
+            <option>Female</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label>Address</label>
+          <input type="text" id="visitorAddress" />
+        </div>
+
+        <div class="field">
+          <label>Invited By</label>
+          <input type="text" id="invitedBy" />
+        </div>
+
+        <div class="field">
+          <label>Sabbath School Class</label>
+          <input type="text" id="visitorClass" />
+        </div>
+
+        <div class="field">
+          <label>Date of Birth</label>
+          <input type="date" id="visitorDob" />
+        </div>
+
+        <div class="field">
+          <label>Note</label>
+          <textarea id="visitorNote" placeholder="Optional note"></textarea>
+        </div>
+
+        <div class="btn-row">
+          <button type="submit" class="btn btn-primary" id="saveVisitorBtn">Save Visitor</button>
+        </div>
+      </form>
+    </div>
+
+    <div class="card">
+      <div class="section-title">Visitor Follow Up Dashboard</div>
+
+      <div style="margin-bottom: 12px;">
+        <strong id="weeklyVisitorsCount">0</strong> weekly visitor(s)
+      </div>
+
+      <div id="weeklyVisitorList" class="muted" style="margin-bottom:16px;">No weekly visitors yet.</div>
+
+      <div class="section-title" style="margin-top:16px;">Follow Up List</div>
+      <div id="followUpList" class="muted">No visitor follow-up needed.</div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top: 20px;">
+    <div class="section-title">Visitors List</div>
+    <input
+      type="text"
+      id="visitorSearch"
+      class="search-input"
+      placeholder="Search by name or phone number..."
+    />
+    <div id="visitorList"></div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script>
+    // Supabase connection
+    const SUPABASE_URL = "https://jyaacjphbqhoafiprkhg.supabase.co";
+    const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_4ZZI7mvJuhXjRRpTpD24Dw_4KRiUutD";
+
+    if (!window.supabase) {
+      alert("Supabase could not load. Check your internet connection and refresh.");
+      throw new Error("Supabase library failed to load.");
+    }
+
+    const supabaseClient = window.supabase.createClient(
+      SUPABASE_URL,
+      SUPABASE_PUBLISHABLE_KEY
+    );
+
+    const VISITORS_TABLE = "visitors";
+    let visitors = [];
+    let members = JSON.parse(localStorage.getItem("church_members") || "[]");
+    let editingVisitorId = null;
+    let databaseReady = false;
+
+    const visitorForm = document.getElementById("visitorForm");
+    const visitorList = document.getElementById("visitorList");
+    const visitorSearch = document.getElementById("visitorSearch");
+    const saveVisitorBtn = document.getElementById("saveVisitorBtn");
+
+    // A small status message helps identify connection/table/RLS problems.
+    const connectionStatus = document.createElement("p");
+    connectionStatus.id = "connectionStatus";
+    connectionStatus.className = "muted";
+    connectionStatus.style.cssText = "margin:0 0 16px;padding:10px 12px;border-radius:10px;background:#eef2ff;";
+    document.querySelector(".topbar").after(connectionStatus);
+
+    function setConnectionStatus(message, isError = false) {
+      connectionStatus.textContent = message;
+      connectionStatus.style.background = isError ? "#fee2e2" : "#eef2ff";
+      connectionStatus.style.color = isError ? "#991b1b" : "#1e3a8a";
+    }
+
+    function mapVisitor(row) {
+      return {
+        id: row.id,
+        fullName: row.full_name ?? row.fullName ?? "",
+        phone: row.phone ?? "",
+        gender: row.gender ?? "",
+        address: row.address ?? "",
+        invitedBy: row.invited_by ?? row.invitedBy ?? "",
+        memberClass: row.member_class ?? row.memberClass ?? "",
+        dob: row.dob ?? null,
+        note: row.note ?? "",
+        visitHistory: Array.isArray(row.visit_history)
+          ? row.visit_history
+          : Array.isArray(row.visitHistory) ? row.visitHistory : []
+      };
+    }
+
+    function visitorToRow(visitor) {
+      return {
+        full_name: visitor.fullName,
+        phone: visitor.phone,
+        gender: visitor.gender,
+        address: visitor.address || null,
+        invited_by: visitor.invitedBy || null,
+        member_class: visitor.memberClass || null,
+        dob: visitor.dob || null,
+        note: visitor.note || null,
+        visit_history: Array.isArray(visitor.visitHistory) ? visitor.visitHistory : []
+      };
+    }
+
+    function saveVisitorsCache() {
+      localStorage.setItem("church_visitors", JSON.stringify(visitors));
+    }
+
+    async function loadVisitors() {
+      setConnectionStatus("Connecting to Supabase and loading visitor records...");
+      try {
+        const { data, error } = await supabaseClient
+          .from(VISITORS_TABLE)
+          .select("*")
+          .order("created_at", { ascending: false });
+
+        if (error) throw error;
+
+        const databaseRows = data || [];
+        const cachedVisitors = JSON.parse(localStorage.getItem("church_visitors") || "[]");
+
+        // One-time safe migration: import this browser's old records only when
+        // the Supabase table is empty. Existing database records are never overwritten.
+        if (databaseRows.length === 0 && cachedVisitors.length > 0) {
+          const legacyRows = cachedVisitors.map(visitorToRow);
+          const { data: importedRows, error: importError } = await supabaseClient
+            .from(VISITORS_TABLE)
+            .insert(legacyRows)
+            .select("*");
+          if (importError) throw importError;
+          visitors = (importedRows || []).map(mapVisitor);
+          setConnectionStatus(`Connected to Supabase. Imported ${visitors.length} existing visitor record(s) from this browser.`);
+        } else {
+          visitors = databaseRows.map(mapVisitor);
+          setConnectionStatus("Connected to Supabase. Visitor records are loading from the database.");
+        }
+
+        databaseReady = true;
+        saveVisitorsCache();
+        renderAll();
+      } catch (error) {
+        databaseReady = false;
+        visitors = JSON.parse(localStorage.getItem("church_visitors") || "[]");
+        setConnectionStatus(
+          "Supabase could not load visitors. Showing this browser's saved records. Check that the visitors table and its access policies are configured. " + error.message,
+          true
+        );
+        renderAll();
+      }
+    }
+
+    function getTodayString() {
+      const now = new Date();
+      const localDate = new Date(now.getTime() - now.getTimezoneOffset() * 60000);
+      return localDate.toISOString().slice(0, 10);
+    }
+
+    function getStartOfWeek(date = new Date()) {
+      const d = new Date(date);
+      d.setHours(0, 0, 0, 0);
+      d.setDate(d.getDate() - d.getDay());
+      return d;
+    }
+
+    function getWeekKey(dateString) {
+      if (!dateString) return "";
+      const parts = String(dateString).slice(0, 10).split("-").map(Number);
+      if (parts.length !== 3 || parts.some(Number.isNaN)) return "";
+      const date = new Date(parts[0], parts[1] - 1, parts[2]);
+      const start = getStartOfWeek(date);
+      return `${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, "0")}-${String(start.getDate()).padStart(2, "0")}`;
+    }
+
+    function getCurrentWeekKey() {
+      return getWeekKey(getTodayString());
+    }
+
+    function getUniqueWeekKeys(visitHistory = []) {
+      return [...new Set(visitHistory.map(getWeekKey).filter(Boolean))].sort();
+    }
+
+    function hasVisitedThisWeek(visitor) {
+      return (visitor.visitHistory || []).some(date => getWeekKey(date) === getCurrentWeekKey());
+    }
+
+    function isFirstTimeThisWeek(visitor) {
+      return (visitor.visitHistory || []).length === 1 && hasVisitedThisWeek(visitor);
+    }
+
+    function isReturningThisWeek(visitor) {
+      const history = visitor.visitHistory || [];
+      return history.length > 1 && hasVisitedThisWeek(visitor);
+    }
+
+    function isWeeklyVisitor(visitor) {
+      const weeks = getUniqueWeekKeys(visitor.visitHistory || []);
+      if (weeks.length < 3) return false;
+      for (let i = 1; i < weeks.length; i++) {
+        const prev = new Date(`${weeks[i - 1]}T00:00:00`);
+        const current = new Date(`${weeks[i]}T00:00:00`);
+        if (Math.round((current - prev) / 86400000) !== 7) return false;
+      }
+      return true;
+    }
+
+    function needsFollowUp(visitor) {
+      const totalVisits = (visitor.visitHistory || []).length;
+      return totalVisits === 1 || !isWeeklyVisitor(visitor);
+    }
+
+    function formatDate(dateValue) {
+      if (!dateValue) return "N/A";
+      const date = new Date(`${String(dateValue).slice(0, 10)}T00:00:00`);
+      if (isNaN(date.getTime())) return dateValue;
+      return date.toLocaleDateString(undefined, {
+        year: "numeric", month: "long", day: "numeric"
+      });
+    }
+
+    function getNextSabbathDate() {
+      const today = new Date();
+      const daysUntilSaturday = (6 - today.getDay() + 7) % 7 || 7;
+      const nextSabbath = new Date(today);
+      nextSabbath.setDate(today.getDate() + daysUntilSaturday);
+      return nextSabbath.toLocaleDateString(undefined, {
+        weekday: "long", year: "numeric", month: "long", day: "numeric"
+      });
+    }
+
+    function buildFollowUpMessage(visitor) {
+      const totalVisits = (visitor.visitHistory || []).length;
+      const serviceTime = "9:00 AM";
+      const nextSabbath = getNextSabbathDate();
+
+      if (totalVisits === 1) {
+        return `Hello ${visitor.fullName}, thank you for visiting Seventh-Day Adventist Church Abelenkpe. We enjoyed your visit to our church. We would be glad to see you again on ${nextSabbath} at ${serviceTime}. God bless you.\nShalom!\n\nSeventh-Day Adventist Church Abelenkpe`;
+      }
+
+      return `Hello ${visitor.fullName}, we hope you are doing well. We missed you on Sabbath and just wanted to check in on you. We look forward to seeing you again at Seventh-Day Adventist Church Abelenkpe on ${nextSabbath} at ${serviceTime}. Your presence means a lot to us. God bless you.\nShalom!\n\nSeventh-Day Adventist Church Abelenkpe`;
+    }
+
+    function buildFollowUpLink(visitor) {
+      const cleanPhone = (visitor.phone || "").replace(/[^0-9]/g, "");
+      return `https://wa.me/${cleanPhone}?text=${encodeURIComponent(buildFollowUpMessage(visitor))}`;
+    }
+
+    function escapeHtml(value) {
+      return String(value ?? "").replace(/[&<>"']/g, char => ({
+        "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+      })[char]);
+    }
+
+    function renderDashboard() {
+      const visitorsThisWeek = visitors.filter(hasVisitedThisWeek).length;
+      const firstTimeThisWeek = visitors.filter(isFirstTimeThisWeek).length;
+      const weeklyVisitors = visitors.filter(isWeeklyVisitor);
+      const followUpVisitors = visitors.filter(needsFollowUp);
+
+      document.getElementById("totalVisitors").textContent = visitors.length;
+      document.getElementById("visitorsThisWeek").textContent = visitorsThisWeek;
+      document.getElementById("firstTimeThisWeek").textContent = firstTimeThisWeek;
+      document.getElementById("followUpCount").textContent = followUpVisitors.length;
+      document.getElementById("weeklyVisitorsCount").textContent = weeklyVisitors.length;
+
+      const weeklyVisitorList = document.getElementById("weeklyVisitorList");
+      const followUpList = document.getElementById("followUpList");
+
+      weeklyVisitorList.innerHTML = weeklyVisitors.length
+        ? weeklyVisitors.map(visitor => `
+          <div class="record-item">
+            <strong>${escapeHtml(visitor.fullName)}</strong>
+            <p class="muted">Phone: ${escapeHtml(visitor.phone || "N/A")}</p>
+            <p class="muted">Weeks attended: ${getUniqueWeekKeys(visitor.visitHistory || []).length}</p>
+            <span class="pill regular">Weekly Visitor</span>
+          </div>`).join("")
+        : '<p class="muted">No weekly visitors yet.</p>';
+
+      followUpList.innerHTML = followUpVisitors.length
+        ? followUpVisitors.map(visitor => {
+            const totalVisits = (visitor.visitHistory || []).length;
+            return `
+              <div class="record-item">
+                <strong>${escapeHtml(visitor.fullName)}</strong>
+                <p class="muted">Phone: ${escapeHtml(visitor.phone || "N/A")}</p>
+                <p class="muted">Total Visits: ${totalVisits}</p>
+                <p class="muted">${totalVisits === 1 ? "One-time visitor" : "Not attending every week"}</p>
+                ${visitor.phone
+                  ? `<a href="${buildFollowUpLink(visitor)}" target="_blank" rel="noopener" class="btn btn-success" style="margin-top:8px;">Send Follow Up</a>`
+                  : '<p class="muted">No phone number available.</p>'}
+              </div>`;
+          }).join("")
+        : '<p class="muted">No visitor follow-up needed.</p>';
+    }
+
+    function renderVisitors() {
+      const query = visitorSearch.value.trim().toLowerCase();
+      const filteredVisitors = visitors.filter(visitor =>
+        (visitor.fullName || "").toLowerCase().includes(query) ||
+        (visitor.phone || "").toLowerCase().includes(query)
+      );
+
+      if (!filteredVisitors.length) {
+        visitorList.innerHTML = '<p class="muted">No visitors found.</p>';
+        return;
+      }
+
+      visitorList.innerHTML = filteredVisitors.map(visitor => {
+        const visitHistory = visitor.visitHistory || [];
+        const totalVisits = visitHistory.length;
+        const lastVisit = totalVisits ? [...visitHistory].sort().at(-1) : "";
+        let statusPill = '<span class="pill new">One-Time Visitor</span>';
+        if (isWeeklyVisitor(visitor)) statusPill = '<span class="pill regular">Weekly Visitor</span>';
+        else if (totalVisits > 1) statusPill = '<span class="pill followup">Needs Follow Up</span>';
+
+        return `
+          <div class="visitor-card">
+            <h4>${escapeHtml(visitor.fullName)}</h4>
+            <p class="muted">Phone: ${escapeHtml(visitor.phone || "N/A")}</p>
+            <p class="muted">Gender: ${escapeHtml(visitor.gender || "N/A")}</p>
+            <p class="muted">Address: ${escapeHtml(visitor.address || "N/A")}</p>
+            <p class="muted">Invited By: ${escapeHtml(visitor.invitedBy || "N/A")}</p>
+            <p class="muted">Class: ${escapeHtml(visitor.memberClass || "N/A")}</p>
+            <p class="muted">DOB: ${visitor.dob ? formatDate(visitor.dob) : "N/A"}</p>
+            <p class="muted">Note: ${escapeHtml(visitor.note || "N/A")}</p>
+            <p class="muted">Total Visits: ${totalVisits}</p>
+            <p class="muted">Last Visit: ${lastVisit ? formatDate(lastVisit) : "No visit recorded yet"}</p>
+            ${statusPill}
+            <div class="btn-row">
+              <button class="btn btn-success" onclick="markVisitorPresentToday('${String(visitor.id).replace(/'/g, "\\'")}')">Mark Visit Today</button>
+              <button class="btn btn-warning" onclick="convertToMember('${String(visitor.id).replace(/'/g, "\\'")}')">Convert to Member</button>
+              <button class="btn btn-primary" onclick="editVisitor('${String(visitor.id).replace(/'/g, "\\'")}')">Edit</button>
+              <button class="btn btn-danger" onclick="deleteVisitor('${String(visitor.id).replace(/'/g, "\\'")}')">Delete</button>
+              ${needsFollowUp(visitor) && visitor.phone
+                ? `<a class="btn btn-light" target="_blank" rel="noopener" href="${buildFollowUpLink(visitor)}">Follow Up</a>`
+                : ""}
+            </div>
+          </div>`;
+      }).join("");
+    }
+
+    function renderAll() {
+      renderDashboard();
+      renderVisitors();
+    }
+
+    async function saveVisitorToSupabase(visitor, isNew) {
+      if (!databaseReady) throw new Error("Supabase is not ready. Visitor changes were not saved.");
+      const payload = visitorToRow(visitor);
+
+      if (isNew) {
+        const { data, error } = await supabaseClient
+          .from(VISITORS_TABLE).insert(payload).select("*").single();
+        if (error) throw error;
+        return mapVisitor(data);
+      }
+
+      const { data, error } = await supabaseClient
+        .from(VISITORS_TABLE).update(payload).eq("id", visitor.id).select("*").single();
+      if (error) throw error;
+      return mapVisitor(data);
+    }
+
+    visitorForm.addEventListener("submit", async function(event) {
+      event.preventDefault();
+      if (!databaseReady) {
+        alert("Supabase is not connected. Please check the connection message above before saving.");
+        return;
+      }
+
+      const fullName = document.getElementById("visitorName").value.trim();
+      const phone = document.getElementById("visitorPhone").value.trim();
+      const gender = document.getElementById("visitorGender").value;
+      const address = document.getElementById("visitorAddress").value.trim();
+      const invitedBy = document.getElementById("invitedBy").value.trim();
+      const memberClass = document.getElementById("visitorClass").value.trim();
+      const dob = document.getElementById("visitorDob").value || null;
+      const note = document.getElementById("visitorNote").value.trim();
+
+      if (!fullName || !phone || !gender) {
+        alert("Please fill all required fields.");
+        return;
+      }
+
+      const duplicate = visitors.find(visitor =>
+        String(visitor.id) !== String(editingVisitorId) &&
+        (visitor.phone || "").trim().toLowerCase() === phone.toLowerCase()
+      );
+      if (duplicate) {
+        alert("This visitor phone number already exists.");
+        return;
+      }
+
+      saveVisitorBtn.disabled = true;
+      saveVisitorBtn.textContent = "Saving...";
+      try {
+        let saved;
+        if (editingVisitorId !== null) {
+          const existing = visitors.find(visitor => String(visitor.id) === String(editingVisitorId));
+          if (!existing) throw new Error("Visitor record could not be found.");
+          saved = await saveVisitorToSupabase({
+            ...existing, fullName, phone, gender, address, invitedBy, memberClass, dob, note
+          }, false);
+          visitors = visitors.map(visitor => String(visitor.id) === String(editingVisitorId) ? saved : visitor);
+        } else {
+          saved = await saveVisitorToSupabase({
+            fullName, phone, gender, address, invitedBy, memberClass, dob, note,
+            visitHistory: [getTodayString()]
+          }, true);
+          visitors.unshift(saved);
+        }
+
+        saveVisitorsCache();
+        visitorForm.reset();
+        editingVisitorId = null;
+        saveVisitorBtn.textContent = "Save Visitor";
+        renderAll();
+      } catch (error) {
+        alert("Could not save visitor to Supabase: " + error.message);
+      } finally {
+        saveVisitorBtn.disabled = false;
+        saveVisitorBtn.textContent = editingVisitorId !== null ? "Update Visitor" : "Save Visitor";
+      }
+    });
+
+    window.markVisitorPresentToday = async function(id) {
+      const visitor = visitors.find(item => String(item.id) === String(id));
+      if (!visitor) return;
+      const history = Array.isArray(visitor.visitHistory) ? [...visitor.visitHistory] : [];
+      const today = getTodayString();
+      if (history.includes(today)) {
+        alert("This visitor has already been marked for today.");
+        return;
+      }
+      history.push(today);
+      history.sort();
+      try {
+        const updated = await saveVisitorToSupabase({ ...visitor, visitHistory: history }, false);
+        visitors = visitors.map(item => String(item.id) === String(id) ? updated : item);
+        saveVisitorsCache();
+        renderAll();
+        alert(updated.fullName + " marked present for today.");
+      } catch (error) {
+        alert("Could not update visit history: " + error.message);
+      }
+    };
+
+    window.editVisitor = function(id) {
+      const visitor = visitors.find(item => String(item.id) === String(id));
+      if (!visitor) return;
+      editingVisitorId = visitor.id;
+      document.getElementById("visitorName").value = visitor.fullName || "";
+      document.getElementById("visitorPhone").value = visitor.phone || "";
+      document.getElementById("visitorGender").value = visitor.gender || "";
+      document.getElementById("visitorAddress").value = visitor.address || "";
+      document.getElementById("invitedBy").value = visitor.invitedBy || "";
+      document.getElementById("visitorClass").value = visitor.memberClass || "";
+      document.getElementById("visitorDob").value = visitor.dob || "";
+      document.getElementById("visitorNote").value = visitor.note || "";
+      saveVisitorBtn.textContent = "Update Visitor";
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    };
+
+    window.deleteVisitor = async function(id) {
+      if (!confirm("Delete this visitor?")) return;
+      try {
+        const { error } = await supabaseClient.from(VISITORS_TABLE).delete().eq("id", id);
+        if (error) throw error;
+        visitors = visitors.filter(visitor => String(visitor.id) !== String(id));
+        saveVisitorsCache();
+        renderAll();
+      } catch (error) {
+        alert("Could not delete visitor from Supabase: " + error.message);
+      }
+    };
+
+    window.convertToMember = function(id) {
+      const visitor = visitors.find(item => String(item.id) === String(id));
+      if (!visitor) return;
+
+      const existsInMembers = members.find(member =>
+        (member.phone || "").toLowerCase() === (visitor.phone || "").toLowerCase() ||
+        (member.memberNumber || "").toLowerCase() === (visitor.phone || "").toLowerCase()
+      );
+      if (existsInMembers) {
+        alert("This visitor already exists as a member.");
+        return;
+      }
+
+      // Keep the visitor record until the member has actually been registered.
+      localStorage.setItem("prefill_member", JSON.stringify({
+        fullName: visitor.fullName,
+        phone: visitor.phone,
+        gender: visitor.gender,
+        memberClass: visitor.memberClass || "",
+        dob: visitor.dob || "",
+        note: "Converted from visitor record",
+        sourceVisitorId: visitor.id
+      }));
+      window.location.href = "main.html?refresh=1";
+    };
+
+    visitorSearch.addEventListener("input", renderVisitors);
+    loadVisitors();
+  </script>
+</body>
+</html>

@@ -1,0 +1,523 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sabbath School Class</title>
+
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #f4f6fb;
+      --card: #ffffff;
+      --text: #111827;
+      --muted: #6b7280;
+      --primary: #2563eb;
+      --success: #16a34a;
+      --danger: #dc2626;
+      --border: #e5e7eb;
+      --shadow: 0 8px 24px rgba(0,0,0,0.06);
+      --radius: 16px;
+    }
+
+    body {
+      font-family: 'Segoe UI', Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      padding: 24px;
+    }
+
+    .topbar, .controls {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-bottom: 22px;
+    }
+
+    h1 { font-size: 1.7rem; }
+    h3 { margin-bottom: 8px; }
+
+    .muted { color: var(--muted); }
+
+    .btn {
+      border: none;
+      padding: 11px 15px;
+      border-radius: 10px;
+      font-weight: 700;
+      cursor: pointer;
+      text-decoration: none;
+      display: inline-block;
+    }
+
+    .btn-primary { background: var(--primary); color: #fff; }
+    .btn-success { background: var(--success); color: #fff; }
+    .btn-danger { background: var(--danger); color: #fff; }
+    .btn-light { background: #eef2ff; color: #1e3a8a; }
+
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 14px;
+      margin-bottom: 22px;
+    }
+
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 18px;
+      box-shadow: var(--shadow);
+      margin-bottom: 16px;
+    }
+
+    .value {
+      font-size: 1.8rem;
+      font-weight: 800;
+      margin-top: 6px;
+    }
+
+    .field label {
+      display: block;
+      font-weight: 700;
+      margin-bottom: 6px;
+      font-size: 0.9rem;
+    }
+
+    .field input {
+      padding: 11px 12px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      width: 170px;
+    }
+
+    .classes-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 16px;
+    }
+
+    .leader-box {
+      background: #ecfdf5;
+      border: 1px solid #bbf7d0;
+      padding: 12px;
+      border-radius: 12px;
+      margin-bottom: 10px;
+    }
+
+    .leader-title {
+      font-weight: 800;
+      color: #166534;
+      margin-bottom: 8px;
+    }
+
+    .leader-name {
+      font-weight: 800;
+      color: #064e3b;
+      font-size: 1rem;
+    }
+
+    .no-leader {
+      background: #fee2e2;
+      border-color: #fecaca;
+    }
+
+    .no-leader .leader-title,
+    .no-leader .leader-name {
+      color: #991b1b;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 12px;
+    }
+
+    th, td {
+      padding: 10px;
+      border-bottom: 1px solid var(--border);
+      text-align: left;
+      font-size: 0.92rem;
+    }
+
+    th {
+      color: var(--muted);
+      text-transform: uppercase;
+      font-size: 0.78rem;
+    }
+
+    .leader-row {
+      background: #f0fdf4;
+      font-weight: 700;
+    }
+
+    .pill {
+      display: inline-block;
+      padding: 5px 10px;
+      border-radius: 999px;
+      font-size: 0.75rem;
+      font-weight: 700;
+    }
+
+    .male { background: #dbeafe; color: #1d4ed8; }
+    .female { background: #fce7f3; color: #be185d; }
+    .other { background: #e5e7eb; color: #374151; }
+    .leader-role { background: #dcfce7; color: #166534; }
+    .member-role { background: #eef2ff; color: #1e3a8a; }
+
+    @media(max-width: 900px) {
+      .stats, .classes-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media print {
+      .topbar, .controls { display: none; }
+      body { background: #fff; }
+      .card {
+        box-shadow: none;
+        border: 1px solid #000;
+      }
+    }
+  </style>
+</head>
+
+<body>
+
+  <div class="topbar">
+    <div>
+      <h1>Sabbath School Class</h1>
+      <p class="muted">Members assigned to discussion leaders based on Sabbath School class names.</p>
+    </div>
+
+    <div>
+      <a href="main.html" class="btn btn-light">Back</a>
+      <button class="btn btn-primary" onclick="window.print()">Print</button>
+    </div>
+  </div>
+
+  <section class="stats">
+    <div class="card">
+      <p class="muted">Total Members</p>
+      <div class="value" id="totalMembers">0</div>
+    </div>
+
+    <div class="card">
+      <p class="muted">Male Members</p>
+      <div class="value" id="totalMales">0</div>
+    </div>
+
+    <div class="card">
+      <p class="muted">Female Members</p>
+      <div class="value" id="totalFemales">0</div>
+    </div>
+
+    <div class="card">
+      <p class="muted">Sabbath Classes</p>
+      <div class="value" id="totalClasses">0</div>
+    </div>
+  </section>
+
+  <div class="card controls">
+    <div class="field">
+      <label>Class Year</label>
+      <input type="number" id="classYear" min="2020" />
+    </div>
+
+    <div>
+      <button class="btn btn-success" onclick="generateClasses()">Generate / Save Year Classes</button>
+      <button class="btn btn-primary" onclick="loadYearClasses()">Load Year Classes</button>
+      <button class="btn btn-danger" onclick="clearYearClasses()">Clear This Year</button>
+    </div>
+  </div>
+
+  <div id="classContainer" class="classes-grid"></div>
+
+  <!-- Supabase Library -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+  <!-- Shared Supabase Configuration -->
+  <script src="supabase-config.js"></script>
+
+  <script>
+    let members = JSON.parse(localStorage.getItem('church_members') || '[]');
+    let generatedClasses = [];
+
+    const currentYear = new Date().getFullYear();
+    document.getElementById('classYear').value = currentYear;
+
+    function getSelectedYear() {
+      return document.getElementById('classYear').value || currentYear;
+    }
+
+    function getStorageKey() {
+      return `sabbath_school_classes_${getSelectedYear()}`;
+    }
+
+    function cleanText(value) {
+      return String(value || '')
+        .toLowerCase()
+        .replace(/\s+/g, ' ')
+        .trim();
+    }
+
+    function isDiscussionLeader(member) {
+      return cleanText(member.note) === 'discussion leader';
+    }
+
+    function isNormalMember(member) {
+      return cleanText(member.note) === 'member' || !cleanText(member.note);
+    }
+
+    function getGenderClass(gender) {
+      const value = cleanText(gender);
+
+      if (value === 'male') return 'male';
+      if (value === 'female') return 'female';
+
+      return 'other';
+    }
+
+   function shuffleArray(array) {
+  return [...array].sort(() => Math.random() - 0.5);
+}
+
+function generateClasses() {
+  members = JSON.parse(localStorage.getItem('church_members') || '[]');
+
+  if (!members.length) {
+    alert('No registered members found.');
+    return;
+  }
+
+  const discussionLeaders = shuffleArray(
+    members.filter(member => isDiscussionLeader(member))
+  );
+
+  const normalMembers = shuffleArray(
+    members.filter(member => !isDiscussionLeader(member))
+  );
+
+  if (!discussionLeaders.length) {
+    alert('No discussion leader found. Please set some members note as DISCUSSION LEADER.');
+    return;
+  }
+
+  const classNames = [...new Set(
+    members
+      .map(member => String(member.memberClass || '').trim())
+      .filter(Boolean)
+  )];
+
+  if (!classNames.length) {
+    alert('No Sabbath School class names found.');
+    return;
+  }
+
+  generatedClasses = classNames.map((className, index) => ({
+    className,
+    leaders: [],
+    members: []
+  }));
+
+  discussionLeaders.forEach((leader, index) => {
+    const targetClass = generatedClasses[index % generatedClasses.length];
+
+    targetClass.leaders.push({
+      id: leader.id,
+      fullName: leader.fullName,
+      serial: leader.memberNumber || 'N/A',
+      gender: leader.gender || 'N/A',
+      phone: leader.phone || 'N/A'
+    });
+
+    targetClass.members.push({
+      ...leader,
+      role: 'Discussion Leader'
+    });
+  });
+
+  const males = shuffleArray(
+    normalMembers.filter(member => cleanText(member.gender) === 'male')
+  );
+
+  const females = shuffleArray(
+    normalMembers.filter(member => cleanText(member.gender) === 'female')
+  );
+
+  const others = shuffleArray(
+    normalMembers.filter(member => {
+      const gender = cleanText(member.gender);
+      return gender !== 'male' && gender !== 'female';
+    })
+  );
+
+  const balancedMembers = [];
+  const maxLength = Math.max(males.length, females.length, others.length);
+
+  for (let i = 0; i < maxLength; i++) {
+    if (males[i]) balancedMembers.push(males[i]);
+    if (females[i]) balancedMembers.push(females[i]);
+    if (others[i]) balancedMembers.push(others[i]);
+  }
+
+  balancedMembers.forEach((member, index) => {
+    const targetClass = generatedClasses[index % generatedClasses.length];
+
+    targetClass.members.push({
+      ...member,
+      role: 'Member'
+    });
+  });
+
+  generatedClasses = generatedClasses.map(group => ({
+    ...group,
+    members: group.members.sort((a, b) => {
+      if (a.role === 'Discussion Leader' && b.role !== 'Discussion Leader') return -1;
+      if (a.role !== 'Discussion Leader' && b.role === 'Discussion Leader') return 1;
+      return String(a.fullName || '').localeCompare(String(b.fullName || ''));
+    })
+  }));
+
+  localStorage.setItem(getStorageKey(), JSON.stringify(generatedClasses));
+  renderClasses();
+
+  alert(`New Sabbath School classes generated and saved for ${getSelectedYear()}.`);
+}
+    function loadYearClasses() {
+      generatedClasses = JSON.parse(localStorage.getItem(getStorageKey()) || '[]');
+      renderClasses();
+    }
+
+    function clearYearClasses() {
+      if (!confirm(`Clear Sabbath School classes for ${getSelectedYear()}?`)) return;
+
+      localStorage.removeItem(getStorageKey());
+      generatedClasses = [];
+      renderClasses();
+    }
+
+    function renderStats() {
+      members = JSON.parse(localStorage.getItem('church_members') || '[]');
+
+      const males = members.filter(member => cleanText(member.gender) === 'male').length;
+      const females = members.filter(member => cleanText(member.gender) === 'female').length;
+
+      document.getElementById('totalMembers').textContent = members.length;
+      document.getElementById('totalMales').textContent = males;
+      document.getElementById('totalFemales').textContent = females;
+      document.getElementById('totalClasses').textContent = generatedClasses.length;
+    }
+
+    function renderLeaderBox(leaders) {
+      if (!leaders || !leaders.length) {
+        return `
+          <div class="leader-box no-leader">
+            <div class="leader-title">Discussion Leader</div>
+            <div class="leader-name">No discussion leader assigned for this class</div>
+          </div>
+        `;
+      }
+
+      return `
+        <div class="leader-box">
+          <div class="leader-title">Discussion Leader(s)</div>
+          <div class="leader-name">
+            ${leaders.map(leader => `${leader.fullName} (${leader.serial})`).join(', ')}
+          </div>
+        </div>
+      `;
+    }
+
+    function renderClasses() {
+      renderStats();
+
+      const container = document.getElementById('classContainer');
+
+      if (!generatedClasses.length) {
+        container.innerHTML = `
+          <div class="card">
+            <p class="muted">
+              No class assignment found for ${getSelectedYear()}.
+              Click “Generate / Save Year Classes” to create one.
+            </p>
+          </div>
+        `;
+        return;
+      }
+
+      container.innerHTML = generatedClasses.map(group => {
+        const maleCount = group.members.filter(member =>
+          cleanText(member.gender) === 'male'
+        ).length;
+
+        const femaleCount = group.members.filter(member =>
+          cleanText(member.gender) === 'female'
+        ).length;
+
+        return `
+          <div class="card">
+            <h3>${group.className}</h3>
+
+            ${renderLeaderBox(group.leaders)}
+
+            <p class="muted">
+              Year: ${getSelectedYear()} |
+              Total Assigned: ${group.members.length} |
+              Male: ${maleCount} |
+              Female: ${femaleCount}
+            </p>
+
+            <table>
+              <thead>
+                <tr>
+                  <th>No.</th>
+                  <th>Name</th>
+                  <th>Serial</th>
+                  <th>Gender</th>
+                  <th>Phone</th>
+                  <th>Role</th>
+                </tr>
+              </thead>
+
+              <tbody>
+                ${
+                  group.members.map((member, index) => {
+                    const leader = member.role === 'Discussion Leader';
+
+                    return `
+                      <tr class="${leader ? 'leader-row' : ''}">
+                        <td>${index + 1}</td>
+                        <td>${member.fullName || 'N/A'}</td>
+                        <td>${member.memberNumber || member.serial || 'N/A'}</td>
+                        <td>
+                          <span class="pill ${getGenderClass(member.gender)}">
+                            ${member.gender || 'N/A'}
+                          </span>
+                        </td>
+                        <td>${member.phone || 'N/A'}</td>
+                        <td>
+                          <span class="pill ${leader ? 'leader-role' : 'member-role'}">
+                            ${leader ? 'Discussion Leader' : 'Member'}
+                          </span>
+                        </td>
+                      </tr>
+                    `;
+                  }).join('')
+                }
+              </tbody>
+            </table>
+          </div>
+        `;
+      }).join('');
+    }
+
+    document.getElementById('classYear').addEventListener('change', loadYearClasses);
+
+    loadYearClasses();
+  </script>
+
+</body>
+</html>

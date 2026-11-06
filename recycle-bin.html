@@ -1,0 +1,872 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Recycle Bin - Church Attendance System</title>
+
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    :root {
+      --bg: #f5f7fb;
+      --card: #ffffff;
+      --text: #18212f;
+      --muted: #667085;
+      --primary: #1d4ed8;
+      --primary-dark: #163ea9;
+      --success: #15803d;
+      --danger: #dc2626;
+      --warning: #d97706;
+      --border: #e5e7eb;
+      --shadow: 0 10px 30px rgba(15, 23, 42, 0.08);
+      --radius: 18px;
+    }
+
+    body {
+      font-family: Arial, Helvetica, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.5;
+      padding: 24px;
+    }
+
+    .container {
+      max-width: 1150px;
+      margin: 0 auto;
+    }
+
+    .topbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 24px;
+      flex-wrap: wrap;
+    }
+
+    .title h1 {
+      font-size: 1.7rem;
+      margin-bottom: 4px;
+    }
+
+    .title p {
+      color: var(--muted);
+      font-size: 0.95rem;
+    }
+
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 18px;
+      margin-bottom: 18px;
+    }
+
+    .toolbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-bottom: 14px;
+    }
+
+    .section-title {
+      font-size: 1.05rem;
+      font-weight: 700;
+    }
+
+    .btn-row {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .btn {
+      border: none;
+      padding: 12px 16px;
+      border-radius: 12px;
+      cursor: pointer;
+      font-weight: 700;
+      font-size: 0.95rem;
+      text-decoration: none;
+      display: inline-block;
+    }
+
+    .btn:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+
+    .btn-primary {
+      background: var(--primary);
+      color: #fff;
+    }
+
+    .btn-primary:hover {
+      background: var(--primary-dark);
+    }
+
+    .btn-success {
+      background: var(--success);
+      color: #fff;
+    }
+
+    .btn-danger {
+      background: var(--danger);
+      color: #fff;
+    }
+
+    .btn-light {
+      background: #eef2ff;
+      color: #1e3a8a;
+    }
+
+    .btn-warning {
+      background: var(--warning);
+      color: #fff;
+    }
+
+    .muted {
+      color: var(--muted);
+    }
+
+    .summary {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 14px;
+      margin-bottom: 18px;
+    }
+
+    .summary-box {
+      background: #fff;
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 16px;
+      box-shadow: var(--shadow);
+    }
+
+    .summary-box h3 {
+      font-size: 0.9rem;
+      color: var(--muted);
+      margin-bottom: 8px;
+    }
+
+    .summary-box .value {
+      font-size: 1.8rem;
+      font-weight: 800;
+    }
+
+    .record-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 14px;
+      padding: 16px 0;
+      border-bottom: 1px solid var(--border);
+      flex-wrap: wrap;
+    }
+
+    .record-item:last-child {
+      border-bottom: none;
+    }
+
+    .item-main {
+      flex: 1;
+      min-width: 260px;
+    }
+
+    .item-main strong {
+      display: block;
+      font-size: 1rem;
+      margin-bottom: 6px;
+    }
+
+    .item-main p {
+      margin-bottom: 6px;
+    }
+
+    .pill {
+      display: inline-block;
+      padding: 6px 10px;
+      border-radius: 999px;
+      font-size: 0.8rem;
+      font-weight: 700;
+      margin-top: 6px;
+    }
+
+    .pill.member {
+      background: #dbeafe;
+      color: #1d4ed8;
+    }
+
+    .pill.record {
+      background: #fef3c7;
+      color: #92400e;
+    }
+
+    .pill.kid {
+      background: #dcfce7;
+      color: #166534;
+    }
+
+    .pill.visitor {
+      background: #ede9fe;
+      color: #5b21b6;
+    }
+
+    .empty-box {
+      padding: 24px 0;
+      text-align: center;
+      color: var(--muted);
+    }
+
+    .filter-row {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .filter-btn {
+      border: 1px solid var(--border);
+      background: #fff;
+      color: var(--text);
+      padding: 10px 14px;
+      border-radius: 12px;
+      cursor: pointer;
+      font-weight: 700;
+    }
+
+    .filter-btn.active {
+      background: var(--primary);
+      color: #fff;
+      border-color: var(--primary);
+    }
+
+    .status-message {
+      padding: 12px 14px;
+      border-radius: 10px;
+      margin-bottom: 15px;
+      display: none;
+      overflow-wrap: anywhere;
+    }
+
+    .status-message.error {
+      display: block;
+      background: #fee2e2;
+      color: #991b1b;
+    }
+
+    .status-message.success {
+      display: block;
+      background: #dcfce7;
+      color: #166534;
+    }
+
+    .status-message.info {
+      display: block;
+      background: #dbeafe;
+      color: #1e40af;
+    }
+
+    @media (max-width: 900px) {
+      .summary {
+        grid-template-columns: repeat(2, 1fr);
+      }
+    }
+
+    @media (max-width: 600px) {
+      .summary {
+        grid-template-columns: 1fr;
+      }
+
+      body {
+        padding: 16px;
+      }
+
+      .btn {
+        padding: 10px 12px;
+        font-size: 0.88rem;
+      }
+
+      .item-main {
+        min-width: 100%;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <div class="container">
+
+    <div class="topbar">
+      <div class="title">
+        <h1>Recycle Bin</h1>
+        <p>Restore deleted members, children, visitors, and church records.</p>
+      </div>
+
+      <div class="btn-row">
+        <a href="main.html" class="btn btn-light">← Back Home</a>
+        <button class="btn btn-danger" id="emptyBinBtn" onclick="emptyRecycleBin()">
+          Empty Bin
+        </button>
+      </div>
+    </div>
+
+    <div id="statusMessage" class="status-message"></div>
+
+    <div class="summary">
+      <div class="summary-box">
+        <h3>Total Items</h3>
+        <div class="value" id="totalDeleted">0</div>
+      </div>
+
+      <div class="summary-box">
+        <h3>Members</h3>
+        <div class="value" id="deletedMembers">0</div>
+      </div>
+
+      <div class="summary-box">
+        <h3>Children</h3>
+        <div class="value" id="deletedKids">0</div>
+      </div>
+
+      <div class="summary-box">
+        <h3>Church Records</h3>
+        <div class="value" id="deletedRecords">0</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="toolbar">
+        <div class="section-title">Deleted Items</div>
+
+        <div class="filter-row">
+          <button class="filter-btn active" onclick="setFilter('all', this)">All</button>
+          <button class="filter-btn" onclick="setFilter('member', this)">Members</button>
+          <button class="filter-btn" onclick="setFilter('child', this)">Children</button>
+          <button class="filter-btn" onclick="setFilter('church_record', this)">Records</button>
+          <button class="filter-btn" onclick="setFilter('visitor', this)">Visitors</button>
+        </div>
+      </div>
+
+      <div id="recycleBinList">
+        <div class="empty-box">Loading deleted records...</div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Supabase Library -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+  <!-- Shared Supabase Configuration -->
+  <script src="supabase-config.js"></script>
+
+  <script>
+  (() => {
+    "use strict";
+
+    const db = window.supabaseClient;
+
+    let recycleBin = [];
+    let currentFilter = "all";
+    let actionInProgress = false;
+
+    const listElement = document.getElementById("recycleBinList");
+    const statusElement = document.getElementById("statusMessage");
+    const emptyButton = document.getElementById("emptyBinBtn");
+
+    function escapeHTML(value) {
+      return String(value ?? "").replace(/[&<>"']/g, char => ({
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        '"': "&quot;",
+        "'": "&#39;"
+      })[char]);
+    }
+
+    function showMessage(message, type = "info") {
+      statusElement.textContent = message;
+      statusElement.className = "status-message " + type;
+    }
+
+    function clearMessage() {
+      statusElement.textContent = "";
+      statusElement.className = "status-message";
+    }
+
+    // ADMIN VERIFICATION
+    async function verifyAdmin() {
+      if (!db || !window.supabaseReady) {
+        throw new Error(
+          "Supabase is not initialized. Check supabase-config.js."
+        );
+      }
+
+      const { data: sessionData, error: sessionError } =
+        await db.auth.getSession();
+
+      if (sessionError) throw sessionError;
+
+      const user = sessionData?.session?.user;
+
+      if (!user) {
+        alert("Your admin session has expired. Please log in again.");
+        window.location.href = "main.html";
+        throw new Error("Admin session required.");
+      }
+
+      const { data: profile, error } = await db
+        .from("profiles")
+        .select("role")
+        .eq("id", user.id)
+        .maybeSingle();
+
+      if (error) throw error;
+
+      if (!profile || profile.role !== "admin") {
+        alert("Access denied. Only church administrators can access the Recycle Bin.");
+        window.location.href = "main.html";
+        throw new Error("Administrator access required.");
+      }
+    }
+
+    // LOAD RECORDS FROM SUPABASE
+    async function loadRecycleBin() {
+      const { data, error } = await db
+        .from("recycle_bin")
+        .select("*")
+        .is("restored_at", null)
+        .order("deleted_at", { ascending: false });
+
+      if (error) throw error;
+
+      recycleBin = data || [];
+
+      renderRecycleBin();
+    }
+
+    // FILTER
+    function setFilter(type, button) {
+      currentFilter = type;
+
+      document.querySelectorAll(".filter-btn").forEach(btn => {
+        btn.classList.remove("active");
+      });
+
+      if (button) button.classList.add("active");
+
+      renderRecycleBin();
+    }
+
+    function getFilteredItems() {
+      if (currentFilter === "all") return recycleBin;
+
+      return recycleBin.filter(item =>
+        item.record_type === currentFilter
+      );
+    }
+
+    // RECORD DISPLAY
+    function getItemView(item) {
+      const data = item.record_data || {};
+
+      switch (item.record_type) {
+        case "member":
+          return {
+            title: data.full_name || "Unnamed Member",
+            subtitle: `Member Number: ${data.member_number || "N/A"}`,
+            extra: `Class: ${data.member_class || "N/A"} • Phone: ${data.phone || "N/A"}`,
+            badgeClass: "member",
+            badgeText: "Member"
+          };
+
+        case "child":
+          return {
+            title: data.full_name || "Unnamed Child",
+            subtitle: `Class: ${data.kid_class || "N/A"}`,
+            extra: `Guardian: ${data.guardian || "N/A"} • Phone: ${data.phone || "N/A"}`,
+            badgeClass: "kid",
+            badgeText: "Child"
+          };
+
+        case "church_record":
+          return {
+            title: data.file_name || "Untitled Church Record",
+            subtitle: `Category: ${data.category || "N/A"}`,
+            extra: `File: ${data.file_name || "N/A"}`,
+            badgeClass: "record",
+            badgeText: "Church Record"
+          };
+
+        case "visitor":
+          return {
+            title: data.full_name || "Unnamed Visitor",
+            subtitle: `Phone: ${data.phone || "N/A"}`,
+            extra: `Address: ${data.address || "N/A"}`,
+            badgeClass: "visitor",
+            badgeText: "Visitor"
+          };
+
+        default:
+          return {
+            title: "Unknown Record",
+            subtitle: item.record_type || "Unknown",
+            extra: "",
+            badgeClass: "",
+            badgeText: "Unknown"
+          };
+      }
+    }
+
+    // SUMMARY
+    function updateSummary() {
+      const count = type =>
+        recycleBin.filter(item => item.record_type === type).length;
+
+      document.getElementById("totalDeleted").textContent =
+        recycleBin.length;
+
+      document.getElementById("deletedMembers").textContent =
+        count("member");
+
+      document.getElementById("deletedKids").textContent =
+        count("child");
+
+      document.getElementById("deletedRecords").textContent =
+        count("church_record");
+    }
+
+    // RENDER
+    function renderRecycleBin() {
+      const items = getFilteredItems();
+
+      if (!items.length) {
+        listElement.innerHTML = `
+          <div class="empty-box">
+            <p>No deleted items found here.</p>
+          </div>
+        `;
+
+        updateSummary();
+        return;
+      }
+
+      listElement.innerHTML = items.map(item => {
+        const view = getItemView(item);
+
+        return `
+          <div class="record-item">
+            <div class="item-main">
+              <strong>${escapeHTML(view.title)}</strong>
+
+              <p class="muted">${escapeHTML(view.subtitle)}</p>
+
+              <p class="muted">${escapeHTML(view.extra)}</p>
+
+              <span class="pill ${escapeHTML(view.badgeClass)}">
+                ${escapeHTML(view.badgeText)}
+              </span>
+
+              <p class="muted" style="margin-top:8px;">
+                Deleted:
+                ${item.deleted_at
+                  ? new Date(item.deleted_at).toLocaleString()
+                  : "N/A"}
+              </p>
+            </div>
+
+            <div class="btn-row">
+              <button
+                class="btn btn-success"
+                onclick="restoreItem('${item.id}')"
+                ${actionInProgress ? "disabled" : ""}>
+                Restore
+              </button>
+
+              <button
+                class="btn btn-danger"
+                onclick="deleteForever('${item.id}')"
+                ${actionInProgress ? "disabled" : ""}>
+                Delete Permanently
+              </button>
+            </div>
+          </div>
+        `;
+      }).join("");
+
+      updateSummary();
+    }
+
+    // ORIGINAL TABLE MAPPING
+    function getOriginalTable(type) {
+      const tables = {
+        member: "members",
+        child: "children",
+        church_record: "church_records",
+        visitor: "visitors"
+      };
+
+      return tables[type] || null;
+    }
+
+    // RESTORE RECORD
+    async function restoreItem(binId) {
+      if (actionInProgress) return;
+
+      const item = recycleBin.find(entry => entry.id === binId);
+
+      if (!item) return;
+
+      if (!confirm("Are you sure you want to restore this record?")) {
+        return;
+      }
+
+      actionInProgress = true;
+      renderRecycleBin();
+      clearMessage();
+
+      try {
+        const table = getOriginalTable(item.record_type);
+
+        if (!table) {
+          throw new Error("Unsupported record type.");
+        }
+
+        const data = item.record_data || {};
+
+        if (!item.original_record_id) {
+          throw new Error("Original record ID is missing.");
+        }
+
+        const restoredData = {
+          ...data,
+          id: item.original_record_id
+        };
+
+        // Reactivate soft-deleted records.
+        if (
+          item.record_type === "member" ||
+          item.record_type === "child"
+        ) {
+          restoredData.is_active = true;
+        }
+
+        // Restore the original database row.
+        const { error: restoreError } = await db
+          .from(table)
+          .upsert(restoredData, {
+            onConflict: "id"
+          });
+
+        if (restoreError) throw restoreError;
+
+        // Mark the recycle-bin entry as restored.
+        const { error: binError } = await db
+          .from("recycle_bin")
+          .update({
+            restored_at: new Date().toISOString()
+          })
+          .eq("id", binId);
+
+        if (binError) {
+          throw new Error(
+            "The original record was restored, but the Recycle Bin entry could not be updated: " +
+            binError.message
+          );
+        }
+
+        await loadRecycleBin();
+
+        showMessage("Record restored successfully.", "success");
+
+      } catch (error) {
+        console.error("Restore error:", error);
+        showMessage(error.message || "Could not restore record.", "error");
+      } finally {
+        actionInProgress = false;
+        renderRecycleBin();
+      }
+    }
+
+    // PERMANENT DELETE
+    async function deleteForever(binId) {
+      if (actionInProgress) return;
+
+      const item = recycleBin.find(entry => entry.id === binId);
+
+      if (!item) return;
+
+      if (!confirm(
+        "Are you sure you want to permanently delete this record? This action cannot be undone."
+      )) {
+        return;
+      }
+
+      actionInProgress = true;
+      renderRecycleBin();
+      clearMessage();
+
+      try {
+        const table = getOriginalTable(item.record_type);
+
+        if (!table) {
+          throw new Error("Unsupported record type.");
+        }
+
+        // Delete the original soft-deleted row first.
+        if (item.original_record_id) {
+          const { error: originalError } = await db
+            .from(table)
+            .delete()
+            .eq("id", item.original_record_id);
+
+          if (originalError) throw originalError;
+        }
+
+        // Then remove its recycle-bin entry.
+        const { error: binError } = await db
+          .from("recycle_bin")
+          .delete()
+          .eq("id", binId);
+
+        if (binError) throw binError;
+
+        await loadRecycleBin();
+
+        showMessage("Record permanently deleted.", "success");
+
+      } catch (error) {
+        console.error("Permanent deletion error:", error);
+
+        showMessage(
+          error.message || "Could not permanently delete record.",
+          "error"
+        );
+      } finally {
+        actionInProgress = false;
+        renderRecycleBin();
+      }
+    }
+
+    // EMPTY RECYCLE BIN
+    async function emptyRecycleBin() {
+      if (actionInProgress) return;
+
+      if (!recycleBin.length) {
+        alert("Recycle Bin is already empty.");
+        return;
+      }
+
+      if (!confirm(
+        "Permanently delete ALL records in the Recycle Bin? This action cannot be undone."
+      )) {
+        return;
+      }
+
+      actionInProgress = true;
+      emptyButton.disabled = true;
+      clearMessage();
+
+      try {
+        const items = [...recycleBin];
+
+        for (const item of items) {
+          const table = getOriginalTable(item.record_type);
+
+          if (!table) {
+            throw new Error(
+              "Unsupported record type: " + item.record_type
+            );
+          }
+
+          if (item.original_record_id) {
+            const { error: originalError } = await db
+              .from(table)
+              .delete()
+              .eq("id", item.original_record_id);
+
+            if (originalError) throw originalError;
+          }
+
+          const { error: binError } = await db
+            .from("recycle_bin")
+            .delete()
+            .eq("id", item.id);
+
+          if (binError) throw binError;
+        }
+
+        await loadRecycleBin();
+
+        showMessage("Recycle Bin emptied successfully.", "success");
+
+      } catch (error) {
+        console.error("Empty Recycle Bin error:", error);
+
+        showMessage(
+          error.message || "Could not empty Recycle Bin.",
+          "error"
+        );
+
+        // Reload because some earlier items may already have been deleted.
+        try {
+          await loadRecycleBin();
+        } catch (reloadError) {
+          console.error(reloadError);
+        }
+
+      } finally {
+        actionInProgress = false;
+        emptyButton.disabled = false;
+        renderRecycleBin();
+      }
+    }
+
+    // EXPOSE FUNCTIONS FOR HTML BUTTONS
+    window.setFilter = setFilter;
+    window.restoreItem = restoreItem;
+    window.deleteForever = deleteForever;
+    window.emptyRecycleBin = emptyRecycleBin;
+
+    // INITIALIZE PAGE
+    async function startRecycleBin() {
+      try {
+        listElement.innerHTML = `
+          <div class="empty-box">Checking administrator access...</div>
+        `;
+
+        await verifyAdmin();
+        await loadRecycleBin();
+
+      } catch (error) {
+        console.error("Recycle Bin initialization failed:", error);
+
+        listElement.innerHTML = `
+          <div class="empty-box">
+            <p>${escapeHTML(error.message || "Could not load Recycle Bin.")}</p>
+          </div>
+        `;
+
+        showMessage(
+          error.message || "Could not connect to Supabase.",
+          "error"
+        );
+      }
+    }
+
+    startRecycleBin();
+
+  })();
+  </script>
+</body>
+</html>
