@@ -923,6 +923,66 @@ body { min-width: 320px; overflow-x: hidden; }
   }
 }
 
+
+/* Full member names on narrow attendance registers */
+@media (max-width: 600px) {
+  /* Keep the name readable as complete words; never split a name mid-word. */
+  #attendanceTable tr > :first-child,
+  #publicAttendanceTable tr > :first-child {
+    width: 28% !important;
+    min-width: 118px !important;
+    white-space: normal !important;
+    overflow-wrap: normal !important;
+    word-break: keep-all !important;
+    hyphens: none !important;
+  }
+
+  /* Give the remaining columns enough room while retaining a compact layout. */
+  #attendanceTable tr > :nth-child(2),
+  #publicAttendanceTable tr > :nth-child(2) {
+    width: 22% !important;
+    min-width: 88px !important;
+    overflow-wrap: anywhere;
+  }
+
+  #attendanceTable tr > :nth-child(3),
+  #publicAttendanceTable tr > :nth-child(3) {
+    width: 16% !important;
+    min-width: 64px !important;
+  }
+
+  #attendanceTable tr > :nth-child(4),
+  #publicAttendanceTable tr > :nth-child(4) {
+    width: 17% !important;
+    min-width: 78px !important;
+  }
+
+  #attendanceTable tr > :nth-child(5),
+  #publicAttendanceTable tr > :nth-child(5) {
+    width: 17% !important;
+    min-width: 72px !important;
+  }
+
+  /* Allow a small horizontal swipe if the phone is too narrow for all columns. */
+  .table-wrap {
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  #attendanceTable,
+  #publicAttendanceTable {
+    min-width: 500px !important;
+    table-layout: fixed !important;
+  }
+}
+
+@media (max-width: 380px) {
+  #attendanceTable tr > :first-child,
+  #publicAttendanceTable tr > :first-child {
+    min-width: 112px !important;
+  }
+}
+
 </style>
 </head>
 <body>
