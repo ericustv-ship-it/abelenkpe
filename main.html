@@ -1203,6 +1203,77 @@ img, video, iframe, canvas {
     overflow: visible !important;
   }
 }
+    
+/* MOBILE BUTTON ARRANGEMENT */
+@media (max-width: 600px) {
+
+  .topbar > div:last-child {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 10px !important;
+    width: 100%;
+  }
+
+  .topbar > div:last-child > .btn,
+  .topbar > div:last-child > button,
+  .topbar > div:last-child > a {
+    display: flex !important;
+    align-items: center;
+    justify-content: center;
+    width: 100% !important;
+    min-width: 0;
+    min-height: 52px;
+    padding: 11px 8px !important;
+    margin: 0 !important;
+    border-radius: 14px !important;
+    background: linear-gradient(145deg, #ffffff, #edf3ff) !important;
+    color: #1e3a8a !important;
+    border: 1px solid #dce6fa;
+    box-shadow: 0 4px 12px rgba(30,64,175,.08);
+    font-size: .9rem !important;
+    font-weight: 700;
+    line-height: 1.3;
+    text-align: center;
+    white-space: normal;
+  }
+
+  /* Logout button */
+  .topbar > div:last-child > #adminLogoutBtn {
+    grid-column: 1 / -1;
+    background: linear-gradient(135deg, #ef4444, #b91c1c) !important;
+    color: white !important;
+  }
+
+  /* Attendance and registration status */
+  .topbar > div:last-child > .session-badge {
+    grid-column: 1 / -1;
+    width: 100% !important;
+    min-height: 46px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+    border-radius: 30px;
+  }
+
+  .topbar > div:last-child > .hidden {
+    display: none !important;
+  }
+}
+
+@media (max-width: 360px) {
+  .topbar > div:last-child {
+    gap: 8px !important;
+  }
+
+  .topbar > div:last-child > .btn,
+  .topbar > div:last-child > button,
+  .topbar > div:last-child > a {
+    min-height: 48px;
+    font-size: .82rem !important;
+  }
+}
+
 
 </style>
 </head>
