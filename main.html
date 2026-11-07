@@ -685,7 +685,6 @@ td, th {
       <button class="nav-btn" data-section="attendance" data-role="admin">Attendance Control</button>
       <button class="nav-btn" data-section="absentees" data-role="admin">Absentees</button>
       <button class="nav-btn" data-section="records" data-role="admin">Church Records</button>
-      <button class="nav-btn" data-section="admin-management" data-role="admin" data-main-only="true">Administrator Management</button>
       <button class="nav-btn active" data-section="member-home" data-role="member">Member Home</button>
       <button class="nav-btn" data-section="member-self-register" data-role="member">Member Registration</button>
       <button class="nav-btn" data-section="member-search" data-role="member">Search Members</button>
@@ -761,53 +760,8 @@ td, th {
             <p class="muted" style="margin-top:12px;"></p>
           </div>
           <div class="card">
-            <div class="section-title">Apply for Administrator Access</div>
-            <p class="muted" style="margin-bottom:12px;">Create your own administrator account. Your application will remain pending until the Main Administrator approves it.</p>
-            <form id="adminSignupForm">
-              <div class="field">
-                <label>Full Name</label>
-                <input type="text" id="adminSignupName" placeholder="Enter your full name" required />
-              </div>
-              <div class="field">
-                <label>Email Address</label>
-                <input type="email" id="adminSignupEmail" placeholder="Enter your email address" required />
-              </div>
-              <div class="field">
-                <label>Create Password</label>
-                <input type="password" id="adminSignupPassword" placeholder="At least 8 characters" minlength="8" required />
-              </div>
-              <div class="field">
-                <label>Confirm Password</label>
-                <input type="password" id="adminSignupConfirmPassword" placeholder="Confirm your password" minlength="8" required />
-              </div>
-              <div class="btn-row">
-                <button type="submit" class="btn btn-primary">Submit Admin Application</button>
-              </div>
-              <p class="muted" id="adminSignupMessage" aria-live="polite"></p>
-            </form>
-          </div>
-          <div class="card">
             <div class="section-title">Access Note</div>
-            <p class="muted">Members do not need an administrator login. New administrator applications must be approved by the Main Administrator before dashboard access is granted.</p>
-          </div>
-        </div>
-      </section>
-
-      <section class="section" id="admin-management">
-        <div class="card">
-          <div class="toolbar">
-            <div>
-              <div class="section-title">Administrator Management</div>
-              <p class="muted">Only the Main Administrator can approve, reject or revoke administrator access.</p>
-            </div>
-            <button class="btn btn-light" id="refreshAdminListBtn" type="button">Refresh List</button>
-          </div>
-          <div id="adminManagementMessage" class="muted" style="margin:10px 0;" aria-live="polite"></div>
-          <div class="table-wrap">
-            <table>
-              <thead><tr><th>Name</th><th>User ID</th><th>Level</th><th>Status</th><th>Actions</th></tr></thead>
-              <tbody id="adminApplicationsTable"><tr><td colspan="5">Administrator list will appear here.</td></tr></tbody>
-            </table>
+            <p class="muted">Members do not need login. Only admin sections are protected with login in this version.</p>
           </div>
         </div>
       </section>
@@ -1148,7 +1102,6 @@ td, th {
 
     let currentView = 'member';
     let isAdminLoggedIn = false;
-    let currentAdminProfile = null;
     let attendanceOpen = false;
     let registrationOpen = false;
     let attendanceOpenedAt = '';
@@ -1191,6 +1144,9 @@ td, th {
         renderAll();
         return;
       }
+      const { data: authData } = await churchSupabase.auth.getSession();
+      if (authData?.session) await verifyAdminSession(authData.session.user);
+
       if (isAdminLoggedIn) {
         const { data: memberRows, error: memberError } = await churchSupabase
           .from('members').select('*').eq('is_active', true).order('full_name');
@@ -1230,9 +1186,6 @@ td, th {
 
       if (isAdminLoggedIn) await loadChurchSettings();
       renderAll();
-      if (isAdminLoggedIn && currentAdminProfile?.admin_level === 'main') {
-        await loadAdminApplications();
-      }
     }
 
     async function loadChurchSettings() {
@@ -1246,17 +1199,11 @@ td, th {
     }
 
     async function verifyAdminSession(user) {
-      if (!user) {
-        isAdminLoggedIn = false;
-        currentAdminProfile = null;
-        return false;
-      }
+      if (!user) { isAdminLoggedIn = false; return false; }
       const { data: profile, error } = await churchSupabase.from('profiles')
-        .select('id, full_name, role, admin_level, approval_status')
-        .eq('id', user.id).maybeSingle();
+        .select('role').eq('id', user.id).maybeSingle();
       if (error) throw error;
-      currentAdminProfile = profile || null;
-      isAdminLoggedIn = profile?.role === 'admin' && profile?.approval_status === 'approved';
+      isAdminLoggedIn = profile?.role === 'admin';
       return isAdminLoggedIn;
     }
 
@@ -1327,7 +1274,7 @@ td, th {
     const CHURCH_LOGO = "sda logo.png";
 
     function goToSection(sectionId) {
-      if (["dashboard", "member-registration", "attendance", "absentees", "records", "admin-management"].includes(sectionId) && !isAdminLoggedIn) {
+      if (["dashboard", "member-registration", "attendance", "absentees", "records"].includes(sectionId) && !isAdminLoggedIn) {
         currentView = 'admin';
         showAdminLoginOnly();
         return;
@@ -1335,11 +1282,6 @@ td, th {
 
       navButtons.forEach(b => b.classList.remove('active'));
       sections.forEach(section => section.classList.remove('active'));
-
-      if (sectionId === 'admin-management' && currentAdminProfile?.admin_level !== 'main') {
-        alert('Only the Main Administrator can manage administrator applications.');
-        return;
-      }
 
       const targetBtn = document.querySelector(`.nav-btn[data-section="${sectionId}"]`);
       if (targetBtn) targetBtn.classList.add('active');
@@ -1354,7 +1296,7 @@ td, th {
 
     function showAdminLoginOnly() {
       navButtons.forEach(btn => {
-        btn.style.display = btn.dataset.role === 'admin' && btn.dataset.mainOnly !== 'true' ? 'block' : 'none';
+        btn.style.display = btn.dataset.role === 'admin' ? 'block' : 'none';
         btn.classList.remove('active');
       });
       sections.forEach(section => section.classList.remove('active'));
@@ -1366,8 +1308,7 @@ td, th {
     function updateViewMode() {
       navButtons.forEach(btn => {
         const role = btn.dataset.role;
-        const mainOnlyBlocked = btn.dataset.mainOnly === 'true' && currentAdminProfile?.admin_level !== 'main';
-        btn.style.display = role === currentView && !mainOnlyBlocked ? 'block' : 'none';
+        btn.style.display = role === currentView ? 'block' : 'none';
       });
 
       if (currentView === 'admin') {
@@ -1411,61 +1352,9 @@ td, th {
       const { error } = await churchSupabase.auth.signOut();
       if (error) return alert(error.message);
       isAdminLoggedIn = false;
-      currentAdminProfile = null;
       currentView = 'member';
       await loadChurchData();
       updateViewMode();
-    });
-
-    document.getElementById('adminSignupForm').addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const signupForm = e.currentTarget;
-      const message = document.getElementById('adminSignupMessage');
-      const fullName = document.getElementById('adminSignupName').value.trim();
-      const email = document.getElementById('adminSignupEmail').value.trim().toLowerCase();
-      const password = document.getElementById('adminSignupPassword').value;
-      const confirmPassword = document.getElementById('adminSignupConfirmPassword').value;
-
-      if (!churchSupabase) {
-        message.textContent = 'Supabase is not connected. Please try again later.';
-        return;
-      }
-      if (!fullName) {
-        message.textContent = 'Please enter your full name.';
-        return;
-      }
-      if (password.length < 8) {
-        message.textContent = 'Your password must contain at least 8 characters.';
-        return;
-      }
-      if (password !== confirmPassword) {
-        message.textContent = 'The passwords do not match.';
-        return;
-      }
-
-      const submitButton = signupForm.querySelector('button[type="submit"]');
-      submitButton.disabled = true;
-      submitButton.textContent = 'Submitting...';
-      message.textContent = '';
-
-      try {
-        const { data, error } = await churchSupabase.auth.signUp({
-          email,
-          password,
-          options: { data: { full_name: fullName } }
-        });
-        if (error) throw error;
-
-        message.textContent = data?.session
-          ? 'Application submitted. Your account is pending Main Administrator approval. You cannot access the dashboard until approved.'
-          : 'Registration submitted. Check your email if confirmation is required. Your administrator application will be pending approval.';
-        signupForm.reset();
-      } catch (err) {
-        message.textContent = 'Could not submit application: ' + err.message;
-      } finally {
-        submitButton.disabled = false;
-        submitButton.textContent = 'Submit Admin Application';
-      }
     });
 
     document.getElementById('adminLoginForm').addEventListener('submit', async (e) => {
@@ -1481,92 +1370,16 @@ td, th {
         if (error) throw error;
         const allowed = await verifyAdminSession(data.user);
         if (!allowed) {
-          const status = currentAdminProfile?.approval_status || 'pending';
           await churchSupabase.auth.signOut();
-          isAdminLoggedIn = false;
-          const messages = {
-            pending: 'Your administrator application is still pending Main Administrator approval.',
-            rejected: 'Your administrator application was not approved.',
-            revoked: 'Your administrator access has been revoked. Please contact the Main Administrator.'
-          };
-          return alert(messages[status] || 'This account does not have approved administrator access.');
+          return alert('This account does not have administrator access.');
         }
         currentView = 'admin';
         await loadChurchData();
         updateViewMode();
-        if (currentAdminProfile?.admin_level === 'main') await loadAdminApplications();
       } catch (err) {
         alert('Could not verify administrator access: ' + err.message);
       }
     });
-
-    async function loadAdminApplications() {
-      if (!isAdminLoggedIn || currentAdminProfile?.admin_level !== 'main') return;
-      const tbody = document.getElementById('adminApplicationsTable');
-      const message = document.getElementById('adminManagementMessage');
-      if (!tbody || !message) return;
-      tbody.innerHTML = '<tr><td colspan="5">Loading administrators...</td></tr>';
-      message.textContent = '';
-      try {
-        const { data, error } = await churchSupabase.from('profiles')
-          .select('id, full_name, role, admin_level, approval_status, created_at')
-          .order('created_at', { ascending: false });
-        if (error) throw error;
-        const admins = (data || []).filter(profile => profile.role === 'admin');
-        if (!admins.length) {
-          tbody.innerHTML = '<tr><td colspan="5">No administrator applications found.</td></tr>';
-          message.textContent = 'No administrator accounts found.';
-          return;
-        }
-        tbody.innerHTML = admins.map(profile => {
-          const status = String(profile.approval_status || 'pending');
-          const safeId = String(profile.id).replace(/[^a-zA-Z0-9-]/g, '');
-          const name = escapeAdminHtml(profile.full_name || 'Unnamed applicant');
-          const level = escapeAdminHtml(profile.admin_level || 'additional');
-          const actionButtons = profile.admin_level === 'main'
-            ? '<span class="muted">Main Admin</span>'
-            : `<div class="btn-row">
-                ${status !== 'approved' ? `<button class="btn btn-success" type="button" onclick="reviewAdminAccess('${safeId}','approved')">Approve</button>` : ''}
-                ${status !== 'rejected' ? `<button class="btn btn-warning" type="button" onclick="reviewAdminAccess('${safeId}','rejected')">Reject</button>` : ''}
-                ${status !== 'revoked' ? `<button class="btn btn-danger" type="button" onclick="reviewAdminAccess('${safeId}','revoked')">Revoke</button>` : ''}
-              </div>`;
-          return `<tr><td>${name}</td><td><small>${safeId}</small></td><td>${level}</td><td><span class="pill ${status === 'approved' ? 'present' : status === 'pending' ? 'open' : 'absent'}">${escapeAdminHtml(status)}</span></td><td>${actionButtons}</td></tr>`;
-        }).join('');
-      } catch (err) {
-        tbody.innerHTML = '<tr><td colspan="5">Could not load administrator list.</td></tr>';
-        message.textContent = err.message;
-      }
-    }
-
-    function escapeAdminHtml(value) {
-      return String(value ?? '').replace(/[&<>"']/g, char => ({
-        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
-      })[char]);
-    }
-
-    window.reviewAdminAccess = async function(userId, status) {
-      if (!isAdminLoggedIn || currentAdminProfile?.admin_level !== 'main') {
-        return alert('Only the Main Administrator can manage administrator accounts.');
-      }
-      if (!['approved', 'rejected', 'revoked'].includes(status)) {
-        return alert('Invalid administrator status.');
-      }
-      const action = status === 'approved' ? 'approve' : status === 'rejected' ? 'reject' : 'revoke';
-      if (!confirm(`Are you sure you want to ${action} this administrator?`)) return;
-      try {
-        const { error } = await churchSupabase.rpc('review_admin_application', {
-          target_user_id: userId,
-          new_status: status
-        });
-        if (error) throw error;
-        document.getElementById('adminManagementMessage').textContent = `Administrator ${action}d successfully.`;
-        await loadAdminApplications();
-      } catch (err) {
-        alert('Could not update administrator status: ' + err.message);
-      }
-    };
-
-    document.getElementById('refreshAdminListBtn').addEventListener('click', loadAdminApplications);
 
     menuToggle.addEventListener('click', () => {
       sidebar.classList.toggle('show');
