@@ -2287,11 +2287,23 @@ function renderSearchResults() {
         await saveSetting('attendance_open', false);
         attendanceOpen = false;
         attendanceClosedAt = closedAt;
+
+        // Save a permanent copy of the member list and attendance status before
+        // any later member edits or removals can affect the historical report.
+        let snapshotWarning = '';
+        try {
+          await saveAbsenteeHistorySnapshot(currentAttendanceSessionId);
+        } catch (snapshotError) {
+          console.error('Absentee snapshot could not be saved:', snapshotError);
+          snapshotWarning = '\nAttendance was closed, but the permanent history snapshot could not be saved. Run the supplied SQL and retry the snapshot.';
+        }
+
         await loadChurchData();
         renderAbsentees();
         if (document.getElementById('absentee-history').classList.contains('active')) {
           await loadAbsenteeHistory();
         }
+        alert('Attendance closed successfully.' + snapshotWarning);
       } catch (err) { alert('Could not close attendance: ' + err.message); }
     });
 
@@ -2513,10 +2525,52 @@ const whatsappLink = whatsappNumber
       }).join('');
     }
 
-    // Absentee history is read from the permanent Supabase attendance_sessions,
-    // member_attendance and members tables. No browser-only history is used.
+    // Permanent attendance snapshots preserve the exact member details and
+    // attendance status that existed when each session was closed.
     let absenteeHistorySessions = [];
     let selectedAbsenteeHistory = null;
+
+    async function saveAbsenteeHistorySnapshot(sessionId) {
+      if (!sessionId) throw new Error('No attendance session was selected.');
+
+      const { data: memberRows, error: membersError } = await churchSupabase
+        .from('members')
+        .select('id,full_name,member_number,gender,member_class,phone,is_active')
+        .eq('is_active', true)
+        .order('full_name');
+      if (membersError) throw membersError;
+
+      const { data: attendanceRows, error: attendanceError } = await churchSupabase
+        .from('member_attendance')
+        .select('member_id,present,marked_at')
+        .eq('session_id', sessionId);
+      if (attendanceError) throw attendanceError;
+
+      const attendanceByMember = new Map((attendanceRows || []).map(row => [row.member_id, row]));
+      const capturedAt = new Date().toISOString();
+      const snapshots = (memberRows || []).map(member => {
+        const attendanceRow = attendanceByMember.get(member.id);
+        return {
+          session_id: sessionId,
+          member_id: member.id,
+          full_name: member.full_name || '',
+          member_number: member.member_number || '',
+          gender: member.gender || '',
+          member_class: member.member_class || '',
+          phone: member.phone || '',
+          present: attendanceRow?.present === true,
+          marked_at: attendanceRow?.marked_at || null,
+          captured_at: capturedAt
+        };
+      });
+
+      if (!snapshots.length) return;
+      // ignoreDuplicates makes the first closed-session snapshot immutable.
+      const { error: insertError } = await churchSupabase
+        .from('attendance_member_snapshots')
+        .upsert(snapshots, { onConflict: 'session_id,member_id', ignoreDuplicates: true });
+      if (insertError) throw insertError;
+    }
 
     function historyMessageFor(member, dateLabel) {
       return `Hello ${member.full_name || 'there'}, we missed your presence at Abelenkpe Seventh-day Adventist Church on ${dateLabel}. We hope you are doing well. You are a valued member of our church family, and we look forward to worshipping with you again. God bless you.`;
@@ -2528,16 +2582,22 @@ const whatsappLink = whatsappNumber
         tbody.innerHTML = '<tr><td colspan="6" class="muted">No closed attendance sessions were found.</td></tr>';
         return;
       }
-      tbody.innerHTML = absenteeHistorySessions.map(session => `
-        <tr>
-          <td>${escapeHtml(formatDisplayDate(session.session_date))}</td>
-          <td>${escapeHtml(session.closed_at ? new Date(session.closed_at).toLocaleString() : 'N/A')}</td>
-          <td><span class="pill absent">${session.absentees.length}</span></td>
-          <td><span class="pill present">${session.presentCount}</span></td>
-          <td>${session.totalCount}</td>
-          <td><button class="btn btn-light" type="button" data-history-session="${escapeHtml(session.id)}">View Records</button></td>
-        </tr>
-      `).join('');
+
+      // Each history item has the shape:
+      // { session: { id, session_date, closed_at, ... }, absentees, presentCount, totalCount }
+      tbody.innerHTML = absenteeHistorySessions.map(item => {
+        const session = item.session || {};
+        return `
+          <tr>
+            <td>${escapeHtml(formatDisplayDate(session.session_date))}</td>
+            <td>${escapeHtml(session.closed_at ? new Date(session.closed_at).toLocaleString() : 'N/A')}</td>
+            <td><span class="pill absent">${item.absentees.length}</span></td>
+            <td><span class="pill present">${item.presentCount}</span></td>
+            <td>${item.totalCount}</td>
+            <td><button class="btn btn-light" type="button" data-history-session="${escapeHtml(session.id || '')}" ${session.id ? '' : 'disabled'}>View Records</button></td>
+          </tr>
+        `;
+      }).join('');
     }
 
     function renderAbsenteeHistoryDetail() {
@@ -2592,30 +2652,48 @@ const whatsappLink = whatsappNumber
           .order('session_date', { ascending: false });
         if (sessionsError) throw sessionsError;
 
-        const { data: memberRows, error: membersError } = await churchSupabase
-          .from('members').select('id,full_name,member_number,gender,member_class,phone,is_active')
-          .order('full_name');
-        if (membersError) throw membersError;
-
-        const allMembers = memberRows || [];
+        // Read permanent snapshots first. Older sessions without snapshots use
+        // the legacy reconstruction path so existing history remains visible.
         const loaded = [];
+        let legacyCount = 0;
         for (const session of (sessions || [])) {
-          const { data: attendanceRows, error: attendanceError } = await churchSupabase
-            .from('member_attendance').select('member_id,present,marked_at')
-            .eq('session_id', session.id);
-          if (attendanceError) throw attendanceError;
-          const attendanceByMember = new Map((attendanceRows || []).map(row => [row.member_id, row]));
-          const presentCount = allMembers.filter(member => attendanceByMember.get(member.id)?.present === true).length;
-          const absentees = allMembers.filter(member => attendanceByMember.get(member.id)?.present !== true);
-          loaded.push({
-            session,
-            absentees,
-            presentCount,
-            totalCount: allMembers.length
-          });
+          const { data: snapshotRows, error: snapshotError } = await churchSupabase
+            .from('attendance_member_snapshots')
+            .select('member_id,full_name,member_number,gender,member_class,phone,present,marked_at')
+            .eq('session_id', session.id)
+            .order('full_name');
+          if (snapshotError) throw snapshotError;
+
+          let rows = snapshotRows || [];
+          if (!rows.length) {
+            legacyCount++;
+            const { data: memberRows, error: membersError } = await churchSupabase
+              .from('members').select('id,full_name,member_number,gender,member_class,phone,is_active')
+              .eq('is_active', true).order('full_name');
+            if (membersError) throw membersError;
+            const { data: attendanceRows, error: attendanceError } = await churchSupabase
+              .from('member_attendance').select('member_id,present,marked_at')
+              .eq('session_id', session.id);
+            if (attendanceError) throw attendanceError;
+            const attendanceByMember = new Map((attendanceRows || []).map(row => [row.member_id, row]));
+            rows = (memberRows || []).map(member => ({
+              member_id: member.id,
+              full_name: member.full_name || '',
+              member_number: member.member_number || '',
+              gender: member.gender || '',
+              member_class: member.member_class || '',
+              phone: member.phone || '',
+              present: attendanceByMember.get(member.id)?.present === true,
+              marked_at: attendanceByMember.get(member.id)?.marked_at || null
+            }));
+          }
+
+          const presentMembers = rows.filter(member => member.present === true);
+          const absentees = rows.filter(member => member.present !== true);
+          loaded.push({ session, absentees, presentCount: presentMembers.length, totalCount: rows.length });
         }
         absenteeHistorySessions = loaded;
-        message.textContent = `${loaded.length} closed attendance session(s) loaded from Supabase.`;
+        message.textContent = `${loaded.length} closed attendance session(s) loaded. ${legacyCount ? `${legacyCount} older session(s) have no permanent snapshot yet and are being reconstructed from current records.` : 'All records are using permanent snapshots.'}`;
         renderAbsenteeHistorySessions();
         if (selectedAbsenteeHistory) {
           selectedAbsenteeHistory = loaded.find(item => item.session.id === selectedAbsenteeHistory.session.id) || null;
