@@ -2321,7 +2321,22 @@ document.getElementById('memberMarkAttendanceBtn').addEventListener('click', asy
     document.getElementById('memberPreviewCard').classList.remove('hidden');
     document.getElementById('previewFullName').textContent = data.fullName || 'N/A';
     document.getElementById('previewMemberNumber').textContent = data.memberNumber || 'N/A';
-    document.getElementById('previewPhone').textContent = data.phoneMasked || 'N/A';
+    // Prefer the full phone returned by the attendance lookup. If the RPC
+    // returns only a masked value, use the matching full phone from the
+    // already-loaded public member directory.
+    const normalizePhoneForMatch = value => {
+      let digits = String(value || '').replace(/\\D/g, '');
+      if (digits.length === 10 && digits.startsWith('0')) digits = '233' + digits.slice(1);
+      else if (digits.length === 9) digits = '233' + digits;
+      return digits;
+    };
+    const matchedDirectoryMember = members.find(member =>
+      String(member.memberNumber || '').toLowerCase() === String(data.memberNumber || '').toLowerCase() ||
+      (normalizePhoneForMatch(member.phone) &&
+       normalizePhoneForMatch(member.phone) === normalizePhoneForMatch(inputValue))
+    );
+    document.getElementById('previewPhone').textContent =
+      data.phone || data.fullPhone || matchedDirectoryMember?.phone || 'N/A';
     document.getElementById('previewGender').textContent = data.gender || 'N/A';
     document.getElementById('previewClass').textContent = data.memberClass || 'N/A';
     document.getElementById('previewDob').textContent = data.dob || 'N/A';
