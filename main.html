@@ -909,13 +909,20 @@ td, th {
       <section class="section" id="member-home">
         <div class="grid-2">
           <div class="card">
-            <div class="section-title">Member Welcome</div>
-            <p class="muted" style="margin-bottom:14px;">New members must complete registration first. After registration, they can use their church serial number or registered phone number to mark attendance when the administrator opens the session, search members, and check birthdays.</p>
+            <div class="section-title">Member Services</div>
+            <p class="muted" style="margin-bottom:16px;">
+              Use the options below to register, find your church information, or record your attendance.
+              You do not need an administrator account to use these member services.
+            </p>
             <div class="btn-row">
-              <button class="btn btn-warning" onclick="goToSection('member-self-register')">Register as Member</button>
-              <button class="btn btn-primary" onclick="goToSection('member-search')">Search Members</button>
-              <button class="btn btn-success" onclick="goToSection('member-attendance')">Mark Attendance</button>
-              <button class="btn btn-light" onclick="goToSection('member-birthdays')">View Birthdays</button>
+              <button class="btn btn-warning" type="button" onclick="goToSection('member-self-register')">Register as Member</button>
+              <button class="btn btn-primary" type="button" onclick="goToSection('member-search')">Search &amp; Find Member</button>
+              <button class="btn btn-success" type="button" onclick="goToSection('member-attendance')">Find My Record &amp; Mark Attendance</button>
+              <button class="btn btn-light" type="button" onclick="goToSection('member-birthdays')">View Birthdays</button>
+            </div>
+            <div style="margin-top:16px;">
+              <p class="muted"><strong>Search:</strong> Enter your name or church serial number to find your member information.</p>
+              <p class="muted"><strong>Attendance:</strong> Enter your registered church serial number or phone number, find your record, then confirm attendance. Attendance can only be recorded when the administrator opens the session.</p>
             </div>
           </div>
           <div class="card">
@@ -979,7 +986,10 @@ td, th {
       <section class="section" id="member-search">
         <div class="card">
           <div class="toolbar">
-            <div class="section-title">Search Members by Name or Church Serial Number</div>
+            <div>
+              <div class="section-title">Find Member Information</div>
+              <p class="muted">Search using a member's name or church serial number.</p>
+            </div>
             <input type="text" id="searchInput" class="search-input" placeholder="Search by name or church serial number..." />
           </div>
           <div class="table-wrap" id="searchTableWrap">
@@ -1005,7 +1015,10 @@ td, th {
       <section class="section" id="member-attendance">
         <div class="card">
           <div class="toolbar">
-            <div class="section-title">Member Self Attendance</div>
+            <div>
+              <div class="section-title">Find Your Record &amp; Mark Attendance</div>
+              <p class="muted">Use your registered serial number or phone number to find your record.</p>
+            </div>
             <span id="memberAttendancePill" class="pill closed">Closed</span>
           </div>
           <div class="grid-2">
@@ -3032,6 +3045,5 @@ document.getElementById('downloadMembersExcelBtn').addEventListener('click', dow
   <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
 </body>
 </html>
-
 
 
