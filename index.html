@@ -663,6 +663,46 @@ body {
         transform: translateY(0);
     }
 }
+.welcome-text {
+    width: 100%;
+    text-align: left;
+}
+
+.welcome-text .title {
+    max-width: 100%;
+    overflow-wrap: break-word;
+}
+
+.welcome-text .subtitle {
+    max-width: 600px;
+    line-height: 1.8;
+}
+
+@media (max-width: 600px) {
+    .welcome-text {
+        text-align: center;
+        width: 100%;
+        padding: 0 5px;
+    }
+
+    .welcome-text .eyebrow,
+    .welcome-text .title,
+    .welcome-text .subtitle {
+        text-align: center;
+        width: 100%;
+    }
+
+    .welcome-text .title {
+        font-size: clamp(1.65rem, 7vw, 2rem);
+        line-height: 1.25;
+    }
+
+    .welcome-text .subtitle {
+        max-width: 100%;
+        font-size: 0.95rem;
+        line-height: 1.65;
+    }
+}
 
 </style>
 
@@ -701,18 +741,22 @@ body {
 
                 </div>
 
-                <div class="eyebrow">You are welcome to</div>
+              <div class="welcome-text">
 
-                <h1 class="title" id="churchTitle">
-                    Welcome to Our Church
-                </h1>
+    <div class="eyebrow">You are welcome to</div>
 
-                <p class="subtitle">
-                    A warm place of worship, fellowship, service, and
-                    spiritual growth. Stay updated with church service
-                    times, celebrate upcoming birthdays, and enter the
-                    church system with ease.
-                </p>
+    <h1 class="title" id="churchTitle">
+        Welcome to Our Church
+    </h1>
+
+    <p class="subtitle">
+        A warm place of worship, fellowship, service, and
+        spiritual growth. Stay updated with church service
+        times, celebrate upcoming birthdays, and enter the
+        church system with ease.
+    </p>
+
+</div>
 
                 <!-- UPCOMING BIRTHDAYS -->
 
