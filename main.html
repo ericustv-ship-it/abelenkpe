@@ -1336,14 +1336,19 @@ td, th {
     const CHURCH_LOGO = "sda logo.png";
 
     function goToSection(sectionId) {
-      if (sectionId === 'admin-management' &&
-          (!isAdminLoggedIn || currentAdminProfile?.admin_level !== 'main')) {
+      const protectedSections = ["dashboard", "member-registration", "attendance", "absentees", "records", "admin-management"];
+      if (protectedSections.includes(sectionId) && !isAdminLoggedIn) {
         alert('Only the Main Administrator can manage administrator accounts.');
         return;
       }
       if (["dashboard", "member-registration", "attendance", "absentees", "records", "admin-management"].includes(sectionId) && !isAdminLoggedIn) {
         currentView = 'admin';
         showAdminLoginOnly();
+        return;
+      }
+
+      if (sectionId === 'admin-management' && currentAdminProfile?.admin_level !== 'main') {
+        alert('Only the Main Administrator can manage administrator accounts.');
         return;
       }
 
@@ -1399,10 +1404,62 @@ td, th {
       });
     });
 
+    // Match the member/admin protection flow:
+    // Member View is public; Admin Login always requires email + password.
+    // Never reuse a previously stored session to skip the password screen.
     document.getElementById('switchAdminView').addEventListener('click', () => {
       currentView = 'admin';
+      isAdminLoggedIn = false;
+      currentAdminProfile = null;
       showAdminLoginOnly();
+
+      const passwordInput = document.getElementById('adminPassword');
+      if (passwordInput) {
+        passwordInput.value = '';
+        passwordInput.focus();
+      }
     });
+
+    // Re-check access whenever Supabase authentication changes.
+    // A revoked, signed-out, or otherwise unapproved account is returned to member mode.
+    if (churchSupabase) {
+      churchSupabase.auth.onAuthStateChange((event, session) => {
+        if (event === 'INITIAL_SESSION') return;
+
+        setTimeout(async () => {
+          const user = session?.user || null;
+          if (!user) {
+            isAdminLoggedIn = false;
+            currentAdminProfile = null;
+            currentView = 'member';
+            updateViewMode();
+            return;
+          }
+
+          try {
+            const allowed = await verifyAdminSession(user);
+            if (!allowed) {
+              await churchSupabase.auth.signOut();
+              isAdminLoggedIn = false;
+              currentAdminProfile = null;
+              currentView = 'member';
+              updateViewMode();
+              alert('Administrator access is not approved or has been revoked.');
+              return;
+            }
+
+            if (currentView === 'admin') updateViewMode();
+          } catch (error) {
+            console.error('Could not re-verify administrator access:', error);
+            await churchSupabase.auth.signOut();
+            isAdminLoggedIn = false;
+            currentAdminProfile = null;
+            currentView = 'member';
+            updateViewMode();
+          }
+        }, 0);
+      });
+    }
 
     document.getElementById('switchMemberView').addEventListener('click', () => {
       currentView = 'member';
