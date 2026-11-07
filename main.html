@@ -2499,19 +2499,25 @@ window.deleteRecord = function(id) {
     }
 
     function updateStats() {
-      const totalMembers = members.length;
-      const presentCount = attendance.filter(a => a.present).length;
+      // Admin view uses the authenticated attendance rows. Member view uses
+      // the public church-wide register returned by get_public_member_attendance.
+      const isPublicView = !isAdminLoggedIn;
+      const totalMembers = isPublicView
+        ? publicAttendanceRows.length
+        : members.length;
+
+      const presentCount = isPublicView
+        ? publicAttendanceRows.filter(row => row.present === true).length
+        : attendance.filter(row => row.present === true).length;
+
+      // Absentees are all registered active members not marked present.
+      // Do not hide the absentee count when attendance is closed or nobody
+      // has checked in yet.
+      const absentCount = Math.max(totalMembers - presentCount, 0);
 
       document.getElementById('totalMembers').textContent = totalMembers;
-
-      if (!attendanceOpen || presentCount === 0) {
-        document.getElementById('presentToday').textContent = 0;
-        document.getElementById('absentToday').textContent = 0;
-        return;
-      }
-
       document.getElementById('presentToday').textContent = presentCount;
-      document.getElementById('absentToday').textContent = Math.max(totalMembers - presentCount, 0);
+      document.getElementById('absentToday').textContent = absentCount;
     }
 
     function formatDisplayDate(dateValue) {
