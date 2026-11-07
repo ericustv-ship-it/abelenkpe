@@ -1052,6 +1052,21 @@ td, th {
               </div>
             </div>
           </div>
+          <div class="card" style="margin-top:18px;">
+            <div class="toolbar">
+              <div>
+                <div class="section-title">Church-Wide Attendance Register</div>
+                <p class="muted">All members can view today's attendance status.</p>
+              </div>
+              <button class="btn btn-light" type="button" id="refreshPublicAttendanceBtn">Refresh Register</button>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead><tr><th>Name</th><th>Church Serial</th><th>Class</th><th>Status</th><th>Marked At</th></tr></thead>
+                <tbody id="publicAttendanceTable"><tr><td colspan="5">Loading attendance register...</td></tr></tbody>
+              </table>
+            </div>
+          </div>
         </div>
       </section>
 
@@ -1174,6 +1189,7 @@ td, th {
     // still use local browser storage and are not yet migrated.
     let members = [];
     let attendance = [];
+    let publicAttendanceRows = [];
     let records = [];
     let memberAttendanceHistory = [];
     let kidsRecords = JSON.parse(localStorage.getItem('church_kids_records') || '[]');
@@ -1184,6 +1200,12 @@ td, th {
       const d = new Date();
       return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
     };
+
+    function escapeHtml(value) {
+      return String(value ?? '').replace(/[&<>"']/g, ch => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+      })[ch]);
+    }
 
     function mapMember(row) {
       return {
@@ -1251,6 +1273,24 @@ td, th {
         if (error) throw error;
         attendanceOpen = !!status?.attendance_open;
         registrationOpen = !!status?.registration_open;
+
+        const { data: publicAttendance, error: publicAttendanceError } =
+          await churchSupabase.rpc('get_public_member_attendance');
+        if (publicAttendanceError) throw publicAttendanceError;
+        publicAttendanceRows = publicAttendance || [];
+      }
+
+      if (isAdminLoggedIn) {
+        publicAttendanceRows = members.map(member => {
+          const record = attendance.find(a => a.memberId === member.id);
+          return {
+            full_name: member.fullName,
+            member_number: member.memberNumber,
+            member_class: member.memberClass,
+            present: !!record?.present,
+            marked_at: record?.markedAt || null
+          };
+        });
       }
 
       if (isAdminLoggedIn) await loadChurchSettings();
@@ -2103,7 +2143,30 @@ function renderSearchResults() {
       // Attendance rows are loaded from Supabase; never synthesize local rows.
     }
 
+    function renderPublicAttendanceRegister() {
+      const tbody = document.getElementById('publicAttendanceTable');
+      if (!tbody) return;
+      if (!publicAttendanceRows.length) {
+        tbody.innerHTML = '<tr><td colspan="5" class="muted">No attendance register is available for today.</td></tr>';
+        return;
+      }
+      tbody.innerHTML = publicAttendanceRows.map(row => {
+        const present = !!row.present;
+        const markedAt = row.marked_at
+          ? new Date(row.marked_at).toLocaleTimeString('en-GH', { hour: '2-digit', minute: '2-digit', timeZone: 'Africa/Accra' })
+          : '—';
+        return `<tr>
+          <td>${escapeHtml(row.full_name || '')}</td>
+          <td>${escapeHtml(row.member_number || '')}</td>
+          <td>${escapeHtml(row.member_class || '')}</td>
+          <td><span class="pill ${present ? 'present' : 'absent'}">${present ? 'Present' : 'Absent'}</span></td>
+          <td>${present ? markedAt : '—'}</td>
+        </tr>`;
+      }).join('');
+    }
+
     function renderAttendance() {
+      renderPublicAttendanceRegister();
       const tbody = document.getElementById('attendanceTable');
       const pill = document.getElementById('attendancePill');
       const sessionStatus = document.getElementById('sessionStatus');
@@ -2232,6 +2295,16 @@ function showMemberPreview(member) {
   document.getElementById('previewDob').textContent = member.dob || 'N/A';
   document.getElementById('previewStatus').textContent = record && record.present ? 'Already marked present' : 'Ready to mark';
 }
+
+document.getElementById('refreshPublicAttendanceBtn')?.addEventListener('click', async () => {
+  const tbody = document.getElementById('publicAttendanceTable');
+  if (tbody) tbody.innerHTML = '<tr><td colspan="5">Refreshing...</td></tr>';
+  try {
+    await loadChurchData();
+  } catch (err) {
+    if (tbody) tbody.innerHTML = `<tr><td colspan="5">Could not load register: ${escapeHtml(err.message)}</td></tr>`;
+  }
+});
 
 document.getElementById('memberMarkAttendanceBtn').addEventListener('click', async () => {
   const inputValue = document.getElementById('memberAttendanceNumber').value.trim();
