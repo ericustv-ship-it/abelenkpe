@@ -988,9 +988,9 @@ td, th {
           <div class="toolbar">
             <div>
               <div class="section-title">Find Member Information</div>
-              <p class="muted">Search using a member's name or church serial number.</p>
+              <p class="muted">Search using a member's name, church serial number or registered phone number.</p>
             </div>
-            <input type="text" id="searchInput" class="search-input" placeholder="Search by name or church serial number..." />
+            <input type="text" id="searchInput" class="search-input" placeholder="Search by name, church serial number or phone number..." />
           </div>
           <div class="table-wrap" id="searchTableWrap">
             <table>
@@ -998,7 +998,7 @@ td, th {
                 <tr>
                  <th>Name</th>
 <th>Church Serial</th>
-<th class="admin-search-private">Phone</th>
+<th>Phone</th>
 <th>Gender</th>
 <th>Class</th>
 <th>DOB</th>
@@ -1265,7 +1265,7 @@ td, th {
           gender: row.gender || '',
           memberClass: row.member_class || '',
           dob: row.dob || '',
-          phone: '',
+          phone: row.phone || '',
           note: ''
         }));
         attendance = [];
@@ -1885,10 +1885,9 @@ function renderSearchResults() {
   const matchedMembers = members.filter(member => {
     const name = String(member.fullName || '').toLowerCase();
     const serial = String(member.memberNumber || '').toLowerCase().replace(/\s+/g, '');
-    const phone = isAdminLoggedIn
-      ? String(member.phone || '').toLowerCase().replace(/\s+/g, '')
-      : '';
-    return name.includes(query) || serial.includes(cleanQuery) || (isAdminLoggedIn && phone.includes(cleanQuery));
+    const phone = String(member.phone || '').replace(/\D/g, '');
+    const phoneQuery = query.replace(/\D/g, '');
+    return name.includes(query) || serial.includes(cleanQuery) || (phoneQuery.length >= 3 && phone.includes(phoneQuery));
   });
 
   const matchedKids = isAdminLoggedIn ? kidsRecords.filter(kid => {
@@ -1924,7 +1923,7 @@ function renderSearchResults() {
       <tr>
         <td>${member.fullName}</td>
         <td>${member.memberNumber}</td>
-        ${isAdminLoggedIn ? `<td>${member.phone ? `<a href="tel:${member.phone}" class="muted">${member.phone}</a>` : 'N/A'}</td>` : ''}
+        <td>${member.phone ? `<a href="tel:${escapeHtml(member.phone)}" class="muted">${escapeHtml(member.phone)}</a>` : 'N/A'}</td>
         <td>${member.gender || 'N/A'}</td>
         <td>${member.memberClass || 'N/A'}</td>
         <td>${member.dob || 'N/A'}</td>
