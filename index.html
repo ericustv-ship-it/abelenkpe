@@ -663,44 +663,68 @@ body {
         transform: translateY(0);
     }
 }
+
+/* WELCOME TEXT ALIGNMENT */
+
 .welcome-text {
     width: 100%;
     text-align: left;
 }
 
+.welcome-text .eyebrow {
+    display: block;
+    text-align: left;
+    margin-bottom: 14px;
+}
+
 .welcome-text .title {
-    max-width: 100%;
-    overflow-wrap: break-word;
+    width: 100%;
+    text-align: left;
+    font-size: 2.7rem;
+    line-height: 1.15;
+    font-weight: 800;
+    text-transform: uppercase;
+    margin-bottom: 14px;
 }
 
 .welcome-text .subtitle {
-    max-width: 600px;
+    width: 100%;
+    max-width: 650px;
+    text-align: left;
+    font-size: 1rem;
     line-height: 1.8;
 }
 
+/* TABLETS AND SMALL SCREENS */
+
 @media (max-width: 600px) {
     .welcome-text {
-        text-align: center;
-        width: 100%;
-        padding: 0 5px;
+        text-align: left !important;
     }
 
     .welcome-text .eyebrow,
     .welcome-text .title,
     .welcome-text .subtitle {
-        text-align: center;
-        width: 100%;
+        text-align: left !important;
     }
 
     .welcome-text .title {
-        font-size: clamp(1.65rem, 7vw, 2rem);
-        line-height: 1.25;
+        font-size: clamp(1.8rem, 7vw, 2.4rem);
+        line-height: 1.15;
     }
 
     .welcome-text .subtitle {
-        max-width: 100%;
         font-size: 0.95rem;
-        line-height: 1.65;
+        line-height: 1.8;
+        max-width: 100%;
+    }
+}
+
+/* EXTRA SMALL PHONES */
+
+@media (max-width: 380px) {
+    .welcome-text .title {
+        font-size: 1.65rem;
     }
 }
 
