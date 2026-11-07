@@ -979,8 +979,8 @@ td, th {
       <section class="section" id="member-search">
         <div class="card">
           <div class="toolbar">
-            <div class="section-title">Search Members by Name or Phone Number</div>
-            <input type="text" id="searchInput" class="search-input" placeholder="Search by name or phone number..." />
+            <div class="section-title">Search Members by Name or Church Serial Number</div>
+            <input type="text" id="searchInput" class="search-input" placeholder="Search by name or church serial number..." />
           </div>
           <div class="table-wrap" id="searchTableWrap">
             <table>
@@ -988,12 +988,12 @@ td, th {
                 <tr>
                  <th>Name</th>
 <th>Church Serial</th>
-<th>Phone</th>
+<th class="admin-search-private">Phone</th>
 <th>Gender</th>
 <th>Class</th>
 <th>DOB</th>
 <th>Type</th>
-<th>Note</th>
+<th class="admin-search-private">Note</th>
                 </tr>
               </thead>
               <tbody id="searchResults"></tbody>
@@ -1219,9 +1219,20 @@ td, th {
           }));
         }
       } else {
-        // Public members cannot SELECT the protected tables. Status and
-        // self-service actions are exposed only through narrowly scoped RPCs.
-        members = [];
+        // Public directory data is returned by a SECURITY DEFINER RPC that
+        // exposes only safe member fields (never phone numbers or private notes).
+        const { data: publicRows, error: publicMembersError } = await churchSupabase.rpc('get_public_members');
+        if (publicMembersError) throw publicMembersError;
+        members = (publicRows || []).map(row => ({
+          id: row.id,
+          fullName: row.full_name || '',
+          memberNumber: row.member_number || '',
+          gender: row.gender || '',
+          memberClass: row.member_class || '',
+          dob: row.dob || '',
+          phone: '',
+          note: ''
+        }));
         attendance = [];
         const { data: status, error } = await churchSupabase.rpc('get_public_church_status');
         if (error) throw error;
@@ -1231,6 +1242,7 @@ td, th {
 
       if (isAdminLoggedIn) await loadChurchSettings();
       renderAll();
+      if (document.getElementById('searchInput')?.value.trim()) renderSearchResults();
       if (isAdminLoggedIn && currentAdminProfile?.admin_level === 'main') {
         await loadAdminApplications();
       }
@@ -1712,6 +1724,7 @@ td, th {
         document.getElementById('selfMemberNumber').value = data?.memberNumber || '';
         alert(`Registration successful. Your church serial number is ${data?.memberNumber || 'available from the church administrator'}.`);
         await refreshPublicStatus();
+        await loadChurchData();
         goToSection('member-home');
       } catch (err) {
         alert('Registration failed: ' + err.message);
@@ -1795,7 +1808,14 @@ td, th {
       goToSection('member-registration');
     }
 
-    function renderSearchResults() {
+    function updateSearchPrivacyColumns() {
+  document.querySelectorAll('.admin-search-private').forEach(cell => {
+    cell.style.display = isAdminLoggedIn ? '' : 'none';
+  });
+}
+
+function renderSearchResults() {
+  updateSearchPrivacyColumns();
   const query = document.getElementById('searchInput').value.trim().toLowerCase();
   const cleanQuery = query.replace(/\s+/g, '');
   const tbody = document.getElementById('searchResults');
@@ -1811,11 +1831,14 @@ td, th {
 
   const matchedMembers = members.filter(member => {
     const name = String(member.fullName || '').toLowerCase();
-    const phone = String(member.phone || '').toLowerCase().replace(/\s+/g, '');
-    return name.includes(query) || phone.includes(cleanQuery);
+    const serial = String(member.memberNumber || '').toLowerCase().replace(/\s+/g, '');
+    const phone = isAdminLoggedIn
+      ? String(member.phone || '').toLowerCase().replace(/\s+/g, '')
+      : '';
+    return name.includes(query) || serial.includes(cleanQuery) || (isAdminLoggedIn && phone.includes(cleanQuery));
   });
 
-  const matchedKids = kidsRecords.filter(kid => {
+  const matchedKids = isAdminLoggedIn ? kidsRecords.filter(kid => {
     const kidName = String(kid.name || '').toLowerCase();
     const kidPhone = String(kid.phone || '').toLowerCase().replace(/\s+/g, '');
     const guardian = String(kid.guardian || '').toLowerCase();
@@ -1829,7 +1852,7 @@ td, th {
       linkedMemberName.includes(query) ||
       linkedMemberNumber.includes(query)
     );
-  });
+  }) : [];
 
   let rows = [];
 
@@ -1848,18 +1871,12 @@ td, th {
       <tr>
         <td>${member.fullName}</td>
         <td>${member.memberNumber}</td>
-        <td>
-          ${member.phone ? `<a href="tel:${member.phone}" class="muted">${member.phone}</a>` : 'N/A'}
-        </td>
+        ${isAdminLoggedIn ? `<td>${member.phone ? `<a href="tel:${member.phone}" class="muted">${member.phone}</a>` : 'N/A'}</td>` : ''}
         <td>${member.gender || 'N/A'}</td>
         <td>${member.memberClass || 'N/A'}</td>
         <td>${member.dob || 'N/A'}</td>
         <td><span class="pill open">Member</span></td>
-        <td>${
-          relatedKids.length
-            ? `Parent/Guardian of: ${relatedKids.map(k => k.name).join(', ')}`
-            : (member.note || 'Church member')
-        }</td>
+        ${isAdminLoggedIn ? `<td>${relatedKids.length ? `Parent/Guardian of: ${relatedKids.map(k => k.name).join(', ')}` : (member.note || 'Church member')}</td>` : ''}
       </tr>
     `);
 
