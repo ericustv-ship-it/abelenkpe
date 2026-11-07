@@ -685,6 +685,7 @@ td, th {
       <button class="nav-btn" data-section="attendance" data-role="admin">Attendance Control</button>
       <button class="nav-btn" data-section="absentees" data-role="admin">Absentees</button>
       <button class="nav-btn" data-section="records" data-role="admin">Church Records</button>
+      <button class="nav-btn" data-section="admin-management" data-role="admin" data-main-only="true">Administrator Management</button>
       <button class="nav-btn active" data-section="member-home" data-role="member">Member Home</button>
       <button class="nav-btn" data-section="member-self-register" data-role="member">Member Registration</button>
       <button class="nav-btn" data-section="member-search" data-role="member">Search Members</button>
@@ -788,6 +789,25 @@ td, th {
           <div class="card">
             <div class="section-title">Access Note</div>
             <p class="muted">Members do not need an administrator login. New administrator applications must be approved by the Main Administrator before dashboard access is granted.</p>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="admin-management">
+        <div class="card">
+          <div class="toolbar">
+            <div>
+              <div class="section-title">Administrator Management</div>
+              <p class="muted">Only the Main Administrator can approve, reject or revoke administrator access.</p>
+            </div>
+            <button class="btn btn-light" id="refreshAdminListBtn" type="button">Refresh List</button>
+          </div>
+          <div id="adminManagementMessage" class="muted" style="margin:10px 0;" aria-live="polite"></div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Name</th><th>User ID</th><th>Level</th><th>Status</th><th>Actions</th></tr></thead>
+              <tbody id="adminApplicationsTable"><tr><td colspan="5">Administrator list will appear here.</td></tr></tbody>
+            </table>
           </div>
         </div>
       </section>
@@ -1128,6 +1148,7 @@ td, th {
 
     let currentView = 'member';
     let isAdminLoggedIn = false;
+    let currentAdminProfile = null;
     let attendanceOpen = false;
     let registrationOpen = false;
     let attendanceOpenedAt = '';
@@ -1171,7 +1192,13 @@ td, th {
         return;
       }
       const { data: authData } = await churchSupabase.auth.getSession();
-      if (authData?.session) await verifyAdminSession(authData.session.user);
+      if (authData?.session) {
+        await verifyAdminSession(authData.session.user);
+        if (isAdminLoggedIn) {
+          currentView = 'admin';
+          updateViewMode();
+        }
+      }
 
       if (isAdminLoggedIn) {
         const { data: memberRows, error: memberError } = await churchSupabase
@@ -1212,6 +1239,9 @@ td, th {
 
       if (isAdminLoggedIn) await loadChurchSettings();
       renderAll();
+      if (isAdminLoggedIn && currentAdminProfile?.admin_level === 'main') {
+        await loadAdminApplications();
+      }
     }
 
     async function loadChurchSettings() {
@@ -1225,10 +1255,16 @@ td, th {
     }
 
     async function verifyAdminSession(user) {
-      if (!user) { isAdminLoggedIn = false; return false; }
+      if (!user) {
+        isAdminLoggedIn = false;
+        currentAdminProfile = null;
+        return false;
+      }
       const { data: profile, error } = await churchSupabase.from('profiles')
-        .select('role, admin_level, approval_status').eq('id', user.id).maybeSingle();
+        .select('id, full_name, role, admin_level, approval_status')
+        .eq('id', user.id).maybeSingle();
       if (error) throw error;
+      currentAdminProfile = profile || null;
       isAdminLoggedIn = profile?.role === 'admin' && profile?.approval_status === 'approved';
       return isAdminLoggedIn;
     }
@@ -1300,7 +1336,12 @@ td, th {
     const CHURCH_LOGO = "sda logo.png";
 
     function goToSection(sectionId) {
-      if (["dashboard", "member-registration", "attendance", "absentees", "records"].includes(sectionId) && !isAdminLoggedIn) {
+      if (sectionId === 'admin-management' &&
+          (!isAdminLoggedIn || currentAdminProfile?.admin_level !== 'main')) {
+        alert('Only the Main Administrator can manage administrator accounts.');
+        return;
+      }
+      if (["dashboard", "member-registration", "attendance", "absentees", "records", "admin-management"].includes(sectionId) && !isAdminLoggedIn) {
         currentView = 'admin';
         showAdminLoginOnly();
         return;
@@ -1334,7 +1375,9 @@ td, th {
     function updateViewMode() {
       navButtons.forEach(btn => {
         const role = btn.dataset.role;
-        btn.style.display = role === currentView ? 'block' : 'none';
+        const mainOnlyBlocked = btn.dataset.mainOnly === 'true' &&
+          currentAdminProfile?.admin_level !== 'main';
+        btn.style.display = role === currentView && !mainOnlyBlocked ? 'block' : 'none';
       });
 
       if (currentView === 'admin') {
@@ -1378,6 +1421,7 @@ td, th {
       const { error } = await churchSupabase.auth.signOut();
       if (error) return alert(error.message);
       isAdminLoggedIn = false;
+      currentAdminProfile = null;
       currentView = 'member';
       await loadChurchData();
       updateViewMode();
@@ -1460,10 +1504,79 @@ td, th {
         currentView = 'admin';
         await loadChurchData();
         updateViewMode();
+        if (currentAdminProfile?.admin_level === 'main') await loadAdminApplications();
       } catch (err) {
         alert('Could not verify administrator access: ' + err.message);
       }
     });
+
+    async function loadAdminApplications() {
+      if (!isAdminLoggedIn || currentAdminProfile?.admin_level !== 'main') return;
+      const tbody = document.getElementById('adminApplicationsTable');
+      const message = document.getElementById('adminManagementMessage');
+      tbody.innerHTML = '<tr><td colspan="5">Loading administrators...</td></tr>';
+      message.textContent = '';
+      try {
+        const { data, error } = await churchSupabase.from('profiles')
+          .select('id, full_name, role, admin_level, approval_status, created_at')
+          .order('created_at', { ascending: false });
+        if (error) throw error;
+        const admins = (data || []).filter(profile => profile.role === 'admin');
+        if (!admins.length) {
+          tbody.innerHTML = '<tr><td colspan="5">No administrator applications found.</td></tr>';
+          message.textContent = 'No administrator accounts found.';
+          return;
+        }
+        tbody.innerHTML = admins.map(profile => {
+          const status = String(profile.approval_status || 'pending');
+          const safeId = String(profile.id).replace(/[^a-zA-Z0-9-]/g, '');
+          const name = escapeAdminHtml(profile.full_name || 'Unnamed applicant');
+          const level = escapeAdminHtml(profile.admin_level || 'additional');
+          const actionButtons = profile.admin_level === 'main'
+            ? '<span class="muted">Main Admin</span>'
+            : `<div class="btn-row">
+                ${status !== 'approved' ? `<button class="btn btn-success" type="button" onclick="reviewAdminAccess('${safeId}','approved')">Approve</button>` : ''}
+                ${status !== 'rejected' ? `<button class="btn btn-warning" type="button" onclick="reviewAdminAccess('${safeId}','rejected')">Reject</button>` : ''}
+                ${status !== 'revoked' ? `<button class="btn btn-danger" type="button" onclick="reviewAdminAccess('${safeId}','revoked')">Revoke</button>` : ''}
+              </div>`;
+          return `<tr><td>${name}</td><td><small>${safeId}</small></td><td>${level}</td><td><span class="pill ${status === 'approved' ? 'present' : status === 'pending' ? 'open' : 'absent'}">${escapeAdminHtml(status)}</span></td><td>${actionButtons}</td></tr>`;
+        }).join('');
+        message.textContent = `Showing ${admins.length} administrator account(s).`;
+      } catch (err) {
+        tbody.innerHTML = '<tr><td colspan="5">Could not load administrator accounts.</td></tr>';
+        message.textContent = 'Error: ' + err.message;
+      }
+    }
+
+    function escapeAdminHtml(value) {
+      return String(value ?? '').replace(/[&<>"']/g, char => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+      })[char]);
+    }
+
+    window.reviewAdminAccess = async function(userId, status) {
+      if (!isAdminLoggedIn || currentAdminProfile?.admin_level !== 'main') {
+        return alert('Only the Main Administrator can manage administrator accounts.');
+      }
+      if (!['approved', 'rejected', 'revoked'].includes(status)) {
+        return alert('Invalid administrator status.');
+      }
+      const action = status === 'approved' ? 'approve' : status === 'rejected' ? 'reject' : 'revoke';
+      if (!confirm(`Are you sure you want to ${action} this administrator?`)) return;
+      try {
+        const { error } = await churchSupabase.rpc('review_admin_application', {
+          target_user_id: userId,
+          new_status: status
+        });
+        if (error) throw error;
+        document.getElementById('adminManagementMessage').textContent = `Administrator ${action}d successfully.`;
+        await loadAdminApplications();
+      } catch (err) {
+        alert('Could not update administrator status: ' + err.message);
+      }
+    };
+
+    document.getElementById('refreshAdminListBtn').addEventListener('click', loadAdminApplications);
 
     menuToggle.addEventListener('click', () => {
       sidebar.classList.toggle('show');
@@ -2894,7 +3007,6 @@ document.getElementById('downloadMembersExcelBtn').addEventListener('click', dow
   <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
 </body>
 </html>
-
 
 
 
