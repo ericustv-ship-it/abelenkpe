@@ -1191,14 +1191,6 @@ td, th {
         renderAll();
         return;
       }
-      const { data: authData } = await churchSupabase.auth.getSession();
-      if (authData?.session) {
-        await verifyAdminSession(authData.session.user);
-        if (isAdminLoggedIn) {
-          currentView = 'admin';
-          updateViewMode();
-        }
-      }
 
       if (isAdminLoggedIn) {
         const { data: memberRows, error: memberError } = await churchSupabase
@@ -2888,6 +2880,27 @@ document.getElementById('uploadBulkBtn').addEventListener('click', async () => {
       renderBirthdayReminderCard();
       updateStats();
       updateMemberEditUI();
+    }
+
+    // Route homepage Admin Login directly to the password form.
+    // The default main.html route remains the public Member Area.
+    // A stored Supabase session must never skip a fresh password entry.
+    const requestedView = new URLSearchParams(window.location.search).get('view');
+    if (requestedView === 'admin') {
+      currentView = 'admin';
+      isAdminLoggedIn = false;
+      currentAdminProfile = null;
+      showAdminLoginOnly();
+      const adminPasswordField = document.getElementById('adminPassword');
+      if (adminPasswordField) {
+        adminPasswordField.value = '';
+        adminPasswordField.focus();
+      }
+    } else {
+      currentView = 'member';
+      isAdminLoggedIn = false;
+      currentAdminProfile = null;
+      updateViewMode();
     }
 
     updateViewMode();
