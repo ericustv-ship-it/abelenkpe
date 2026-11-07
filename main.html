@@ -760,8 +760,34 @@ td, th {
             <p class="muted" style="margin-top:12px;"></p>
           </div>
           <div class="card">
+            <div class="section-title">Apply for Administrator Access</div>
+            <p class="muted" style="margin-bottom:12px;">Create your own administrator account. Your application will remain pending until the Main Administrator approves it.</p>
+            <form id="adminSignupForm">
+              <div class="field">
+                <label>Full Name</label>
+                <input type="text" id="adminSignupName" placeholder="Enter your full name" required />
+              </div>
+              <div class="field">
+                <label>Email Address</label>
+                <input type="email" id="adminSignupEmail" placeholder="Enter your email address" required />
+              </div>
+              <div class="field">
+                <label>Create Password</label>
+                <input type="password" id="adminSignupPassword" placeholder="At least 8 characters" minlength="8" required />
+              </div>
+              <div class="field">
+                <label>Confirm Password</label>
+                <input type="password" id="adminSignupConfirmPassword" placeholder="Confirm your password" minlength="8" required />
+              </div>
+              <div class="btn-row">
+                <button type="submit" class="btn btn-primary">Submit Admin Application</button>
+              </div>
+              <p class="muted" id="adminSignupMessage" aria-live="polite"></p>
+            </form>
+          </div>
+          <div class="card">
             <div class="section-title">Access Note</div>
-            <p class="muted">Members do not need login. Only admin sections are protected with login in this version.</p>
+            <p class="muted">Members do not need an administrator login. New administrator applications must be approved by the Main Administrator before dashboard access is granted.</p>
           </div>
         </div>
       </section>
@@ -1201,9 +1227,9 @@ td, th {
     async function verifyAdminSession(user) {
       if (!user) { isAdminLoggedIn = false; return false; }
       const { data: profile, error } = await churchSupabase.from('profiles')
-        .select('role').eq('id', user.id).maybeSingle();
+        .select('role, admin_level, approval_status').eq('id', user.id).maybeSingle();
       if (error) throw error;
-      isAdminLoggedIn = profile?.role === 'admin';
+      isAdminLoggedIn = profile?.role === 'admin' && profile?.approval_status === 'approved';
       return isAdminLoggedIn;
     }
 
@@ -1357,6 +1383,53 @@ td, th {
       updateViewMode();
     });
 
+    document.getElementById('adminSignupForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const signupForm = e.currentTarget;
+      const message = document.getElementById('adminSignupMessage');
+      const fullName = document.getElementById('adminSignupName').value.trim();
+      const email = document.getElementById('adminSignupEmail').value.trim().toLowerCase();
+      const password = document.getElementById('adminSignupPassword').value;
+      const confirmPassword = document.getElementById('adminSignupConfirmPassword').value;
+
+      if (!churchSupabase) {
+        message.textContent = 'Supabase is not connected. Please try again later.';
+        return;
+      }
+      if (password.length < 8) {
+        message.textContent = 'Your password must contain at least 8 characters.';
+        return;
+      }
+      if (password !== confirmPassword) {
+        message.textContent = 'The passwords do not match.';
+        return;
+      }
+
+      const submitButton = signupForm.querySelector('button[type="submit"]');
+      submitButton.disabled = true;
+      submitButton.textContent = 'Submitting...';
+      message.textContent = '';
+
+      try {
+        const { data, error } = await churchSupabase.auth.signUp({
+          email,
+          password,
+          options: { data: { full_name: fullName } }
+        });
+        if (error) throw error;
+
+        message.textContent = data?.session
+          ? 'Application submitted. Your account is pending Main Administrator approval. You cannot access the dashboard until approved.'
+          : 'Registration submitted. Check your email if confirmation is required. Your administrator application will be pending approval.';
+        signupForm.reset();
+      } catch (err) {
+        message.textContent = 'Could not submit application: ' + err.message;
+      } finally {
+        submitButton.disabled = false;
+        submitButton.textContent = 'Submit Admin Application';
+      }
+    });
+
     document.getElementById('adminLoginForm').addEventListener('submit', async (e) => {
       e.preventDefault();
       if (!churchSupabase) {
@@ -1370,8 +1443,19 @@ td, th {
         if (error) throw error;
         const allowed = await verifyAdminSession(data.user);
         if (!allowed) {
+          const { data: profile } = await churchSupabase.from('profiles')
+            .select('role, approval_status').eq('id', data.user.id).maybeSingle();
           await churchSupabase.auth.signOut();
-          return alert('This account does not have administrator access.');
+          if (profile?.approval_status === 'pending') {
+            return alert('Your administrator application is still pending Main Administrator approval.');
+          }
+          if (profile?.approval_status === 'rejected') {
+            return alert('Your administrator application was not approved.');
+          }
+          if (profile?.approval_status === 'revoked') {
+            return alert('Your administrator access has been revoked. Please contact the Main Administrator.');
+          }
+          return alert('This account does not have approved administrator access.');
         }
         currentView = 'admin';
         await loadChurchData();
