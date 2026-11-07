@@ -693,6 +693,11 @@ td, th {
       <button class="nav-btn" data-section="attendance" data-role="admin">Attendance Control</button>
       <button class="nav-btn" data-section="absentees" data-role="admin">Absentees</button>
       <button class="nav-btn" data-section="absentee-history" data-role="admin">Absentee History</button>
+      <button class="nav-btn"
+        data-section="member-status"
+        data-role="admin">
+    Member Status & Transfers
+</button>
       <button class="nav-btn" data-section="records" data-role="admin">Church Records</button>
       <button class="nav-btn" data-section="admin-management" data-role="admin" data-main-only="true">Administrator Management</button>
       <button class="nav-btn active" data-section="member-home" data-role="member">Member Home</button>
@@ -1157,6 +1162,107 @@ td, th {
         <div id="absenteeHistoryPrintArea" class="print-report"></div>
       </section>
 
+
+      <!-- MEMBER STATUS & CHURCH TRANSFERS -->
+      <section class="section" id="member-status">
+        <div class="stats" style="margin-bottom:20px;">
+          <div class="card stat-card">
+            <h3>Deceased Members</h3>
+            <div class="value" id="deceasedCount">0</div>
+          </div>
+          <div class="card stat-card">
+            <h3>Transferred Members</h3>
+            <div class="value" id="transferredCount">0</div>
+          </div>
+        </div>
+
+        <div class="grid-2">
+          <div class="card">
+            <div class="section-title">Record Member Status</div>
+            <form id="memberStatusForm">
+              <div class="field">
+                <label for="statusFullName">Full Name</label>
+                <input type="text" id="statusFullName" required>
+              </div>
+              <div class="field">
+                <label for="statusMemberNumber">Church Serial Number</label>
+                <input type="text" id="statusMemberNumber" placeholder="Enter church serial number" required>
+              </div>
+              <div class="field">
+                <label for="statusType">Record Type</label>
+                <select id="statusType" required>
+                  <option value="">Select record type</option>
+                  <option value="deceased">Deceased Member</option>
+                  <option value="transferred">Transferred to Another Church</option>
+                </select>
+              </div>
+              <div class="field">
+                <label for="statusEventDate" id="statusDateLabel">Date of Death</label>
+                <input type="date" id="statusEventDate" required>
+              </div>
+              <div class="field hidden" id="destinationChurchField">
+                <label for="destinationChurch">Receiving Church</label>
+                <input type="text" id="destinationChurch" placeholder="Enter receiving church">
+              </div>
+              <div class="field">
+                <label for="statusRemarks">Additional Remarks</label>
+                <textarea id="statusRemarks" placeholder="Optional remarks"></textarea>
+              </div>
+              <div class="btn-row">
+                <button type="submit" class="btn btn-primary" id="saveStatusBtn">Save Record</button>
+                <button type="button" class="btn btn-light" id="cancelStatusEditBtn" style="display:none;">Cancel Edit</button>
+              </div>
+              <p class="muted" id="memberStatusMessage" aria-live="polite"></p>
+            </form>
+          </div>
+
+          <div class="card">
+            <div class="section-title">About These Records</div>
+            <div class="member-card">
+              <h4 style="color:#dc2626;">Deceased Members</h4>
+              <p class="muted">Keep a respectful record of members who have passed away, including the date of death.</p>
+            </div>
+            <div class="member-card">
+              <h4 style="color:#2563eb;">Transferred Members</h4>
+              <p class="muted">Record members who have transferred to another church, including the receiving church and transfer date.</p>
+            </div>
+            <p class="muted">Recording a deceased or transferred member automatically removes that person from the active membership total. The historical status record remains available in this register.</p>
+          </div>
+        </div>
+
+        <div class="card" style="margin-top:18px;">
+          <div class="toolbar">
+            <div>
+              <div class="section-title">Member Status Register</div>
+              <p class="muted">Search, review and manage deceased and transferred member records.</p>
+            </div>
+            <button class="btn btn-light" type="button" id="refreshStatusRecordsBtn">Refresh Records</button>
+          </div>
+          <div class="toolbar">
+            <input type="search" id="statusSearch" class="search-input" placeholder="Search name, serial number or receiving church...">
+            <select id="statusFilter" class="search-input" aria-label="Filter member status records">
+              <option value="all">All Records</option>
+              <option value="deceased">Deceased Members</option>
+              <option value="transferred">Transferred Members</option>
+            </select>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th><th>Member Name</th><th>Church Serial</th>
+                  <th>Status</th><th>Date</th><th>Receiving Church</th>
+                  <th>Remarks</th><th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="memberStatusTable">
+                <tr><td colspan="8">Open this page to load records.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
       <section class="section" id="records">
         <div class="grid-2">
           <div class="card">
@@ -1275,6 +1381,26 @@ td, th {
         return;
       }
       if (isAdminLoggedIn) {
+        // Reconcile older status records too. Some deceased/transferred records
+        // may have been saved before automatic deactivation was added.
+        const { data: savedStatusRows, error: savedStatusError } = await churchSupabase
+          .from('member_status_records')
+          .select('member_number')
+          .in('record_type', ['deceased', 'transferred']);
+        if (savedStatusError) throw savedStatusError;
+
+        const inactiveNumbers = [...new Set((savedStatusRows || [])
+          .map(row => String(row.member_number || '').trim())
+          .filter(Boolean))];
+
+        if (inactiveNumbers.length) {
+          const { error: reconcileError } = await churchSupabase
+            .from('members')
+            .update({ is_active: false })
+            .in('member_number', inactiveNumbers);
+          if (reconcileError) throw reconcileError;
+        }
+
         const { data: memberRows, error: memberError } = await churchSupabase
           .from('members').select('*').eq('is_active', true).order('full_name');
         if (memberError) throw memberError;
@@ -1324,7 +1450,16 @@ td, th {
         const { data: publicAttendance, error: publicAttendanceError } =
           await churchSupabase.rpc('get_public_member_attendance');
         if (publicAttendanceError) throw publicAttendanceError;
-        publicAttendanceRows = publicAttendance || [];
+
+        // Only include attendance rows belonging to members returned by the
+        // active public directory. This keeps deceased/transferred members
+        // out of public totals and present counts as well.
+        const activeMemberNumbers = new Set(
+          members.map(member => String(member.memberNumber || '').trim()).filter(Boolean)
+        );
+        publicAttendanceRows = (publicAttendance || []).filter(row =>
+          activeMemberNumbers.has(String(row.member_number || '').trim())
+        );
       }
 
       if (isAdminLoggedIn) {
@@ -1440,7 +1575,7 @@ td, th {
     const CHURCH_LOGO = "sda logo.png";
 
     function goToSection(sectionId) {
-      const protectedSections = ["dashboard", "member-registration", "attendance", "absentees", "absentee-history", "records", "admin-management"];
+      const protectedSections = ["dashboard", "member-registration", "attendance", "absentees", "absentee-history", "member-status", "records", "admin-management"];
       if (protectedSections.includes(sectionId) && !isAdminLoggedIn) {
         currentView = 'admin';
         showAdminLoginOnly();
@@ -1460,6 +1595,7 @@ td, th {
       const targetSection = document.getElementById(sectionId);
       if (targetSection) targetSection.classList.add('active');
       if (sectionId === 'absentee-history' && isAdminLoggedIn) loadAbsenteeHistory();
+      if (sectionId === 'member-status' && isAdminLoggedIn) loadMemberStatusRecords();
 
       sidebar.classList.remove('show');
     }
@@ -2853,16 +2989,14 @@ window.deleteRecord = function(id) {
     }
 
     function updateStats() {
-      // Admin view uses the authenticated attendance rows. Member view uses
-      // the public church-wide register returned by get_public_member_attendance.
-      const isPublicView = !isAdminLoggedIn;
-      const totalMembers = isPublicView
-        ? publicAttendanceRows.length
-        : members.length;
+      // `members` is the active member directory in both admin and public views.
+      // Do not use attendance-row count as membership: attendance data can
+      // contain historical or otherwise non-active member rows.
+      const totalMembers = members.length;
 
-      const presentCount = isPublicView
-        ? publicAttendanceRows.filter(row => row.present === true).length
-        : attendance.filter(row => row.present === true).length;
+      const presentCount = isAdminLoggedIn
+        ? attendance.filter(row => row.present === true).length
+        : publicAttendanceRows.filter(row => row.present === true).length;
 
       // Absentees are all registered active members not marked present.
       // Do not hide the absentee count when attendance is closed or nobody
@@ -3291,6 +3425,297 @@ document.getElementById('uploadBulkBtn').addEventListener('click', async () => {
   }
 });
 
+
+    // ==========================================
+    // MEMBER STATUS & CHURCH TRANSFER RECORDS
+    // ==========================================
+    let memberStatusRecords = [];
+    let editingStatusId = null;
+
+    async function loadMemberStatusRecords() {
+      const tbody = document.getElementById('memberStatusTable');
+      if (!tbody) return;
+
+      if (!churchSupabase || !isAdminLoggedIn) {
+        tbody.innerHTML = '<tr><td colspan="8">Administrator access is required.</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = '<tr><td colspan="8">Loading records...</td></tr>';
+
+      try {
+        const { data, error } = await churchSupabase
+          .from('member_status_records')
+          .select('*')
+          .order('event_date', { ascending: false });
+
+        if (error) throw error;
+        memberStatusRecords = data || [];
+        renderMemberStatusRecords();
+      } catch (error) {
+        console.error('Member status loading error:', error);
+        tbody.innerHTML = `<tr><td colspan="8">Could not load records: ${escapeHtml(error.message)}</td></tr>`;
+      }
+    }
+
+    function renderMemberStatusRecords() {
+      const tbody = document.getElementById('memberStatusTable');
+      if (!tbody) return;
+
+      const search = (document.getElementById('statusSearch')?.value || '').trim().toLowerCase();
+      const filter = document.getElementById('statusFilter')?.value || 'all';
+
+      const deceasedCount = memberStatusRecords.filter(r => r.record_type === 'deceased').length;
+      const transferredCount = memberStatusRecords.filter(r => r.record_type === 'transferred').length;
+
+      document.getElementById('deceasedCount').textContent = deceasedCount;
+      document.getElementById('transferredCount').textContent = transferredCount;
+
+      const filtered = memberStatusRecords.filter(record => {
+        const matchesType = filter === 'all' || record.record_type === filter;
+        const searchable = [
+          record.full_name, record.member_number, record.destination_church, record.remarks
+        ].join(' ').toLowerCase();
+        return matchesType && searchable.includes(search);
+      });
+
+      if (!filtered.length) {
+        tbody.innerHTML = '<tr><td colspan="8" class="muted">No matching member status records found.</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = filtered.map((record, index) => {
+        const deceased = record.record_type === 'deceased';
+        const label = deceased ? 'Deceased' : 'Transferred';
+        const pillClass = deceased ? 'absent' : 'open';
+        return `
+          <tr>
+            <td>${index + 1}</td>
+            <td><strong>${escapeHtml(record.full_name)}</strong></td>
+            <td>${escapeHtml(record.member_number || 'N/A')}</td>
+            <td><span class="pill ${pillClass}">${label}</span></td>
+            <td>${escapeHtml(record.event_date || 'N/A')}</td>
+            <td>${escapeHtml(record.destination_church || 'N/A')}</td>
+            <td>${escapeHtml(record.remarks || 'N/A')}</td>
+            <td>
+              <div class="btn-row">
+                <button type="button" class="btn btn-light" onclick="editMemberStatus('${record.id}')">Edit</button>
+                <button type="button" class="btn btn-danger" onclick="deleteMemberStatus('${record.id}')">Delete</button>
+              </div>
+            </td>
+          </tr>`;
+      }).join('');
+    }
+
+    document.getElementById('statusType').addEventListener('change', function () {
+      const transferred = this.value === 'transferred';
+      document.getElementById('destinationChurchField').classList.toggle('hidden', !transferred);
+      document.getElementById('destinationChurch').required = transferred;
+      document.getElementById('statusDateLabel').textContent =
+        transferred ? 'Date of Transfer' : 'Date of Death';
+    });
+
+    document.getElementById('memberStatusForm').addEventListener('submit', async function (event) {
+      event.preventDefault();
+
+      if (!churchSupabase || !isAdminLoggedIn) {
+        alert('Please sign in with an approved administrator account.');
+        return;
+      }
+
+      const recordType = document.getElementById('statusType').value;
+      const destination = document.getElementById('destinationChurch').value.trim();
+
+      if (recordType === 'transferred' && !destination) {
+        alert('Please enter the receiving church.');
+        return;
+      }
+
+      if (recordType === 'deceased' &&
+          !confirm('Confirm that you want to record this member as deceased?')) {
+        return;
+      }
+
+      const payload = {
+        full_name: document.getElementById('statusFullName').value.trim(),
+        member_number: document.getElementById('statusMemberNumber').value.trim(),
+        record_type: recordType,
+        event_date: document.getElementById('statusEventDate').value,
+        destination_church: recordType === 'transferred' ? destination : null,
+        remarks: document.getElementById('statusRemarks').value.trim() || null
+      };
+
+      if (!payload.full_name || !payload.member_number || !payload.record_type || !payload.event_date) {
+        alert('Please enter the member name, church serial number, record type and date.');
+        return;
+      }
+
+      // Match by the unique church serial number before changing membership status.
+      const { data: matchedMember, error: memberLookupError } = await churchSupabase
+        .from('members')
+        .select('id, full_name, member_number, is_active')
+        .eq('member_number', payload.member_number)
+        .maybeSingle();
+
+      if (memberLookupError) throw memberLookupError;
+      if (!matchedMember) {
+        alert('No registered member was found with that church serial number. Check the number and try again.');
+        return;
+      }
+
+      // Prevent accidentally recording a different person's status.
+      if (matchedMember.full_name.trim().toLowerCase() !== payload.full_name.toLowerCase()) {
+        const confirmed = confirm(
+          `The serial number belongs to ${matchedMember.full_name}, not ${payload.full_name}. Use the registered member's name instead?`
+        );
+        if (!confirmed) return;
+        payload.full_name = matchedMember.full_name;
+        document.getElementById('statusFullName').value = matchedMember.full_name;
+      }
+
+      const button = document.getElementById('saveStatusBtn');
+      const message = document.getElementById('memberStatusMessage');
+      button.disabled = true;
+      button.textContent = editingStatusId ? 'Updating...' : 'Saving...';
+      message.textContent = '';
+
+      try {
+        let result;
+        if (editingStatusId) {
+          result = await churchSupabase
+            .from('member_status_records')
+            .update(payload)
+            .eq('id', editingStatusId);
+        } else {
+          const { data: userData, error: userError } = await churchSupabase.auth.getUser();
+          if (userError) throw userError;
+          payload.created_by = userData.user?.id || null;
+          result = await churchSupabase.from('member_status_records').insert(payload);
+        }
+
+        if (result.error) throw result.error;
+
+        // Deceased and transferred members are no longer active members.
+        // This removes them from the active membership total without deleting their records.
+        const { error: deactivateError } = await churchSupabase
+          .from('members')
+          .update({ is_active: false })
+          .eq('id', matchedMember.id);
+
+        if (deactivateError) {
+          throw new Error(
+            'The status record was saved, but the member could not be removed from the active membership total: ' +
+            deactivateError.message
+          );
+        }
+
+        message.textContent = editingStatusId
+          ? 'Record updated. Member removed from the active membership total.'
+          : 'Record saved. Member removed from the active membership total.';
+
+        resetMemberStatusForm();
+        await loadChurchData();
+        await loadMemberStatusRecords();
+      } catch (error) {
+        console.error('Member status save error:', error);
+        message.textContent = 'Could not save record: ' + error.message;
+        alert('Could not save record: ' + error.message);
+      } finally {
+        button.disabled = false;
+        button.textContent = editingStatusId ? 'Update Record' : 'Save Record';
+      }
+    });
+
+    window.editMemberStatus = function (id) {
+      const record = memberStatusRecords.find(item => String(item.id) === String(id));
+      if (!record) return;
+
+      editingStatusId = id;
+      document.getElementById('statusFullName').value = record.full_name || '';
+      document.getElementById('statusMemberNumber').value = record.member_number || '';
+      document.getElementById('statusType').value = record.record_type || '';
+      document.getElementById('statusEventDate').value = record.event_date || '';
+      document.getElementById('destinationChurch').value = record.destination_church || '';
+      document.getElementById('statusRemarks').value = record.remarks || '';
+
+      const transferred = record.record_type === 'transferred';
+      document.getElementById('destinationChurchField').classList.toggle('hidden', !transferred);
+      document.getElementById('destinationChurch').required = transferred;
+      document.getElementById('statusDateLabel').textContent =
+        transferred ? 'Date of Transfer' : 'Date of Death';
+
+      document.getElementById('saveStatusBtn').textContent = 'Update Record';
+      document.getElementById('cancelStatusEditBtn').style.display = 'inline-block';
+      document.getElementById('memberStatusForm').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    };
+
+    window.deleteMemberStatus = async function (id) {
+      if (!churchSupabase || !isAdminLoggedIn) {
+        alert('Administrator access is required.');
+        return;
+      }
+
+      const record = memberStatusRecords.find(item => String(item.id) === String(id));
+      if (!record) return;
+
+      if (!confirm(`Delete the status record for ${record.full_name}? This cannot be undone.`)) return;
+
+      try {
+        const { error } = await churchSupabase
+          .from('member_status_records')
+          .delete()
+          .eq('id', id);
+        if (error) throw error;
+
+        // If no other status record exists for this serial number,
+        // restore the member to active membership when this status record is deleted.
+        if (record.member_number) {
+          const { data: otherStatusRows, error: otherStatusError } = await churchSupabase
+            .from('member_status_records')
+            .select('id')
+            .eq('member_number', record.member_number)
+            .limit(1);
+
+          if (otherStatusError) throw otherStatusError;
+
+          if (!otherStatusRows || otherStatusRows.length === 0) {
+            const { error: restoreError } = await churchSupabase
+              .from('members')
+              .update({ is_active: true })
+              .eq('member_number', record.member_number);
+
+            if (restoreError) throw restoreError;
+          }
+        }
+
+        await loadChurchData();
+        await loadMemberStatusRecords();
+      } catch (error) {
+        console.error('Member status delete error:', error);
+        alert('Could not delete record: ' + error.message);
+      }
+    };
+
+    function resetMemberStatusForm() {
+      document.getElementById('memberStatusForm').reset();
+      editingStatusId = null;
+      document.getElementById('destinationChurchField').classList.add('hidden');
+      document.getElementById('destinationChurch').required = false;
+      document.getElementById('statusDateLabel').textContent = 'Date of Death';
+      document.getElementById('saveStatusBtn').textContent = 'Save Record';
+      document.getElementById('cancelStatusEditBtn').style.display = 'none';
+    }
+
+    document.getElementById('cancelStatusEditBtn')
+      .addEventListener('click', resetMemberStatusForm);
+    document.getElementById('statusSearch')
+      .addEventListener('input', renderMemberStatusRecords);
+    document.getElementById('statusFilter')
+      .addEventListener('change', renderMemberStatusRecords);
+    document.getElementById('refreshStatusRecordsBtn')
+      .addEventListener('click', loadMemberStatusRecords);
+
+
     function renderAll() {
       renderRegistrationState();
       renderMembers();
@@ -3478,5 +3903,4 @@ document.getElementById('downloadMembersExcelBtn').addEventListener('click', dow
   <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
 </body>
 </html>
-
 
