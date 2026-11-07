@@ -1195,6 +1195,7 @@ td, th {
     let kidsRecords = JSON.parse(localStorage.getItem('church_kids_records') || '[]');
     let editingMemberId = null;
     let selectedAttendanceMemberId = null;
+    let selectedAttendanceAlreadyMarked = false;
 
     const todayLocalDate = () => {
       const d = new Date();
@@ -2271,6 +2272,9 @@ function renderSearchResults() {
 
     function hideMemberPreview() {
   selectedAttendanceMemberId = null;
+  selectedAttendanceAlreadyMarked = false;
+  const confirmBtn = document.getElementById('confirmMemberAttendanceBtn');
+  if (confirmBtn) { confirmBtn.disabled = false; confirmBtn.textContent = 'Confirm Attendance'; }
   document.getElementById('memberPreviewCard').classList.add('hidden');
   document.getElementById('previewFullName').textContent = 'N/A';
   document.getElementById('previewMemberNumber').textContent = 'N/A';
@@ -2317,7 +2321,15 @@ document.getElementById('memberMarkAttendanceBtn').addEventListener('click', asy
       result.textContent = 'No registered member was found. Registration must be completed first.';
       return;
     }
-    selectedAttendanceMemberId = inputValue;
+    // Check the church-wide attendance register as well as the lookup RPC.
+    // This prevents a member from being offered the mark button again after
+    // the page has been refreshed or the member searches a second time.
+    const existingPublicRecord = (publicAttendanceRows || []).find(row =>
+      String(row.member_number || '').trim().toLowerCase() ===
+      String(data.memberNumber || '').trim().toLowerCase()
+    );
+    selectedAttendanceAlreadyMarked = !!data.alreadyMarked || !!existingPublicRecord?.present;
+    selectedAttendanceMemberId = selectedAttendanceAlreadyMarked ? null : inputValue;
     document.getElementById('memberPreviewCard').classList.remove('hidden');
     document.getElementById('previewFullName').textContent = data.fullName || 'N/A';
     document.getElementById('previewMemberNumber').textContent = data.memberNumber || 'N/A';
@@ -2340,24 +2352,57 @@ document.getElementById('memberMarkAttendanceBtn').addEventListener('click', asy
     document.getElementById('previewGender').textContent = data.gender || 'N/A';
     document.getElementById('previewClass').textContent = data.memberClass || 'N/A';
     document.getElementById('previewDob').textContent = data.dob || 'N/A';
-    document.getElementById('previewStatus').textContent = data.alreadyMarked ? 'Already marked present' : 'Ready to mark';
-    result.textContent = data.alreadyMarked ? 'Attendance has already been recorded.' : 'Member found. Confirm attendance below.';
+    const confirmBtn = document.getElementById('confirmMemberAttendanceBtn');
+    confirmBtn.disabled = selectedAttendanceAlreadyMarked;
+    confirmBtn.textContent = selectedAttendanceAlreadyMarked ? 'Already Marked' : 'Confirm Attendance';
+    document.getElementById('previewStatus').textContent = selectedAttendanceAlreadyMarked ? 'Already marked present' : 'Ready to mark';
+    result.textContent = selectedAttendanceAlreadyMarked
+      ? 'We have already marked your attendance for this session. You cannot mark it again.'
+      : 'Member found. Confirm attendance below.';
   } catch (err) { result.textContent = 'Could not find member: ' + err.message; }
 });
 
 document.getElementById('confirmMemberAttendanceBtn').addEventListener('click', async () => {
   const result = document.getElementById('memberAttendanceResult');
+  const confirmBtn = document.getElementById('confirmMemberAttendanceBtn');
+  if (selectedAttendanceAlreadyMarked || confirmBtn.disabled) {
+    result.textContent = 'We have already marked your attendance for this session. You cannot mark it again.';
+    return;
+  }
   if (!selectedAttendanceMemberId) { result.textContent = 'Search for your record first.'; return; }
+  // Lock immediately to stop double-clicks while the request is processing.
+  confirmBtn.disabled = true;
+  confirmBtn.textContent = 'Marking...';
   try {
     const { data, error } = await churchSupabase.rpc('mark_member_attendance', {
       p_member_identifier: selectedAttendanceMemberId
     });
     if (error) throw error;
-    result.textContent = data?.message || `${data?.fullName || 'Member'} attendance recorded successfully.`;
+    // Treat an explicit duplicate response from the database as already marked.
+    if (data?.alreadyMarked || data?.already_marked || data?.status === 'already_marked') {
+      selectedAttendanceAlreadyMarked = true;
+      selectedAttendanceMemberId = null;
+      confirmBtn.disabled = true;
+      confirmBtn.textContent = 'Already Marked';
+      document.getElementById('previewStatus').textContent = 'Already marked present';
+      result.textContent = data?.message || 'We have already marked your attendance for this session. You cannot mark it again.';
+      await loadChurchData();
+      return;
+    }
+    selectedAttendanceAlreadyMarked = true;
+    selectedAttendanceMemberId = null;
+    confirmBtn.disabled = true;
+    confirmBtn.textContent = 'Already Marked';
+    result.textContent = data?.message || `${data?.fullName || 'Member'} attendance recorded successfully. You cannot mark it again.`;
     document.getElementById('memberAttendanceNumber').value = '';
-    document.getElementById('previewStatus').textContent = 'Present';
-    await refreshPublicStatus();
-  } catch (err) { result.textContent = 'Attendance could not be marked: ' + err.message; }
+    document.getElementById('previewStatus').textContent = 'Already marked present';
+    await loadChurchData();
+  } catch (err) {
+    // Re-enable only after a failed request; successful/duplicate marks stay locked.
+    confirmBtn.disabled = false;
+    confirmBtn.textContent = 'Confirm Attendance';
+    result.textContent = 'Attendance could not be marked: ' + err.message;
+  }
 });
 
 document.getElementById('clearMemberPreviewBtn').addEventListener('click', () => {
