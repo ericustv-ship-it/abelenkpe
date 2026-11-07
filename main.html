@@ -2249,7 +2249,7 @@ document.getElementById('memberMarkAttendanceBtn').addEventListener('click', asy
     document.getElementById('memberPreviewCard').classList.remove('hidden');
     document.getElementById('previewFullName').textContent = data.fullName || 'N/A';
     document.getElementById('previewMemberNumber').textContent = data.memberNumber || 'N/A';
-    document.getElementById('previewPhone').textContent = data.phone || 'N/A';
+    document.getElementById('previewPhone').textContent = data.phoneMasked || 'N/A';
     document.getElementById('previewGender').textContent = data.gender || 'N/A';
     document.getElementById('previewClass').textContent = data.memberClass || 'N/A';
     document.getElementById('previewDob').textContent = data.dob || 'N/A';
