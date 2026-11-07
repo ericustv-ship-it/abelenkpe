@@ -811,6 +811,37 @@ body { min-width: 320px; overflow-x: hidden; }
   }
 }
 
+
+
+/* Keep attendance status labels on one straight line on small screens */
+.pill, .pill.present, .pill.absent, .pill.open, .pill.closed {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: max-content;
+  max-width: none;
+  white-space: nowrap !important;
+  overflow-wrap: normal !important;
+  word-break: keep-all !important;
+  flex-shrink: 0;
+  line-height: 1.2;
+}
+
+/* Give the status column enough room for the complete label */
+#attendanceTable td:nth-child(4),
+#publicAttendanceTable td:nth-child(4) {
+  min-width: 100px;
+  white-space: nowrap;
+}
+
+@media (max-width: 600px) {
+  #attendanceTable td .pill,
+  #publicAttendanceTable td .pill {
+    font-size: 0.78rem;
+    padding: 7px 11px;
+  }
+}
+
 </style>
 </head>
 <body>
