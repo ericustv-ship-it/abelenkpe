@@ -464,11 +464,18 @@
       }
 
       #printArea,
-      #printArea * {
+      #printArea *,
+      #absenteeHistoryPrintArea,
+      #absenteeHistoryPrintArea * {
         visibility: visible;
       }
+      body.printing-absentee-history #printArea,
+      body:not(.printing-absentee-history) #absenteeHistoryPrintArea {
+        display: none !important;
+      }
 
-      #printArea {
+      #printArea,
+      #absenteeHistoryPrintArea {
         display: block !important;
         position: absolute;
         left: 0;
@@ -685,6 +692,7 @@ td, th {
       <button class="nav-btn" data-section="member-registration" data-role="admin">Member Registration</button>
       <button class="nav-btn" data-section="attendance" data-role="admin">Attendance Control</button>
       <button class="nav-btn" data-section="absentees" data-role="admin">Absentees</button>
+      <button class="nav-btn" data-section="absentee-history" data-role="admin">Absentee History</button>
       <button class="nav-btn" data-section="records" data-role="admin">Church Records</button>
       <button class="nav-btn" data-section="admin-management" data-role="admin" data-main-only="true">Administrator Management</button>
       <button class="nav-btn active" data-section="member-home" data-role="member">Member Home</button>
@@ -1111,6 +1119,44 @@ td, th {
         <div id="printArea" class="print-report"></div>
       </section>
 
+      <section class="section" id="absentee-history">
+        <div class="card">
+          <div class="toolbar">
+            <div>
+              <div class="section-title">Absentee History</div>
+              <p class="muted">Review absentees from previously closed attendance sessions. Select a date to view, message, download or print its record.</p>
+            </div>
+            <button class="btn btn-light" type="button" id="refreshAbsenteeHistoryBtn">Refresh History</button>
+          </div>
+          <div id="absenteeHistoryMessage" class="muted" aria-live="polite" style="margin:10px 0;">Select Refresh History to load saved records.</div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Attendance Date</th><th>Closed At</th><th>Absent</th><th>Present</th><th>Total</th><th>Action</th></tr></thead>
+              <tbody id="absenteeHistoryTable"><tr><td colspan="6">No history loaded.</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+        <div class="card" style="margin-top:16px;" id="absenteeHistoryDetailCard">
+          <div class="toolbar">
+            <div>
+              <div class="section-title" id="absenteeHistoryDetailTitle">Selected Session</div>
+              <p class="muted" id="absenteeHistoryDetailSubtitle">Choose a closed attendance date above.</p>
+            </div>
+            <div class="btn-row">
+              <button class="btn btn-success" type="button" id="downloadAbsenteeHistoryBtn" disabled>Download CSV</button>
+              <button class="btn btn-primary" type="button" id="printAbsenteeHistoryBtn" disabled>Print List</button>
+            </div>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>#</th><th>Name</th><th>Church Serial</th><th>Class</th><th>Phone</th><th>Message</th></tr></thead>
+              <tbody id="absenteeHistoryDetailTable"><tr><td colspan="6">No session selected.</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+        <div id="absenteeHistoryPrintArea" class="print-report"></div>
+      </section>
+
       <section class="section" id="records">
         <div class="grid-2">
           <div class="card">
@@ -1394,7 +1440,7 @@ td, th {
     const CHURCH_LOGO = "sda logo.png";
 
     function goToSection(sectionId) {
-      const protectedSections = ["dashboard", "member-registration", "attendance", "absentees", "records", "admin-management"];
+      const protectedSections = ["dashboard", "member-registration", "attendance", "absentees", "absentee-history", "records", "admin-management"];
       if (protectedSections.includes(sectionId) && !isAdminLoggedIn) {
         currentView = 'admin';
         showAdminLoginOnly();
@@ -1413,6 +1459,7 @@ td, th {
 
       const targetSection = document.getElementById(sectionId);
       if (targetSection) targetSection.classList.add('active');
+      if (sectionId === 'absentee-history' && isAdminLoggedIn) loadAbsenteeHistory();
 
       sidebar.classList.remove('show');
     }
@@ -2242,6 +2289,9 @@ function renderSearchResults() {
         attendanceClosedAt = closedAt;
         await loadChurchData();
         renderAbsentees();
+        if (document.getElementById('absentee-history').classList.contains('active')) {
+          await loadAbsenteeHistory();
+        }
       } catch (err) { alert('Could not close attendance: ' + err.message); }
     });
 
@@ -2462,6 +2512,173 @@ const whatsappLink = whatsappNumber
 `;
       }).join('');
     }
+
+    // Absentee history is read from the permanent Supabase attendance_sessions,
+    // member_attendance and members tables. No browser-only history is used.
+    let absenteeHistorySessions = [];
+    let selectedAbsenteeHistory = null;
+
+    function historyMessageFor(member, dateLabel) {
+      return `Hello ${member.full_name || 'there'}, we missed your presence at Abelenkpe Seventh-day Adventist Church on ${dateLabel}. We hope you are doing well. You are a valued member of our church family, and we look forward to worshipping with you again. God bless you.`;
+    }
+
+    function renderAbsenteeHistorySessions() {
+      const tbody = document.getElementById('absenteeHistoryTable');
+      if (!absenteeHistorySessions.length) {
+        tbody.innerHTML = '<tr><td colspan="6" class="muted">No closed attendance sessions were found.</td></tr>';
+        return;
+      }
+      tbody.innerHTML = absenteeHistorySessions.map(session => `
+        <tr>
+          <td>${escapeHtml(formatDisplayDate(session.session_date))}</td>
+          <td>${escapeHtml(session.closed_at ? new Date(session.closed_at).toLocaleString() : 'N/A')}</td>
+          <td><span class="pill absent">${session.absentees.length}</span></td>
+          <td><span class="pill present">${session.presentCount}</span></td>
+          <td>${session.totalCount}</td>
+          <td><button class="btn btn-light" type="button" data-history-session="${escapeHtml(session.id)}">View Records</button></td>
+        </tr>
+      `).join('');
+    }
+
+    function renderAbsenteeHistoryDetail() {
+      const tbody = document.getElementById('absenteeHistoryDetailTable');
+      const downloadBtn = document.getElementById('downloadAbsenteeHistoryBtn');
+      const printBtn = document.getElementById('printAbsenteeHistoryBtn');
+      const title = document.getElementById('absenteeHistoryDetailTitle');
+      const subtitle = document.getElementById('absenteeHistoryDetailSubtitle');
+      if (!selectedAbsenteeHistory) {
+        tbody.innerHTML = '<tr><td colspan="6">No session selected.</td></tr>';
+        downloadBtn.disabled = true;
+        printBtn.disabled = true;
+        title.textContent = 'Selected Session';
+        subtitle.textContent = 'Choose a closed attendance date above.';
+        return;
+      }
+      const dateLabel = formatDisplayDate(selectedAbsenteeHistory.session.session_date);
+      title.textContent = `Absentees — ${dateLabel}`;
+      subtitle.textContent = `${selectedAbsenteeHistory.absentees.length} absent out of ${selectedAbsenteeHistory.totalCount} registered members.`;
+      downloadBtn.disabled = selectedAbsenteeHistory.absentees.length === 0;
+      printBtn.disabled = false;
+      if (!selectedAbsenteeHistory.absentees.length) {
+        tbody.innerHTML = '<tr><td colspan="6">No absentees were recorded for this session.</td></tr>';
+        return;
+      }
+      tbody.innerHTML = selectedAbsenteeHistory.absentees.map((member, index) => {
+        const number = normalizeWhatsAppNumber(member.phone);
+        const message = historyMessageFor(member, dateLabel);
+        const url = number ? `https://wa.me/${number}?text=${encodeURIComponent(message)}` : '';
+        return `<tr>
+          <td>${index + 1}</td>
+          <td>${escapeHtml(member.full_name)}</td>
+          <td>${escapeHtml(member.member_number || 'N/A')}</td>
+          <td>${escapeHtml(member.member_class || 'N/A')}</td>
+          <td>${escapeHtml(member.phone || 'No phone')}</td>
+          <td>${url ? `<a class="btn btn-success" href="${url}" target="_blank" rel="noopener">Send WhatsApp</a>` : '<span class="muted">No phone number</span>'}</td>
+        </tr>`;
+      }).join('');
+    }
+
+    async function loadAbsenteeHistory() {
+      if (!isAdminLoggedIn || !churchSupabase) {
+        document.getElementById('absenteeHistoryMessage').textContent = 'Administrator login is required to view absentee history.';
+        return;
+      }
+      const message = document.getElementById('absenteeHistoryMessage');
+      message.textContent = 'Loading saved attendance history...';
+      try {
+        const { data: sessions, error: sessionsError } = await churchSupabase
+          .from('attendance_sessions').select('id,session_date,opened_at,closed_at,is_open')
+          .eq('attendance_type', 'members').eq('is_open', false)
+          .order('session_date', { ascending: false });
+        if (sessionsError) throw sessionsError;
+
+        const { data: memberRows, error: membersError } = await churchSupabase
+          .from('members').select('id,full_name,member_number,gender,member_class,phone,is_active')
+          .order('full_name');
+        if (membersError) throw membersError;
+
+        const allMembers = memberRows || [];
+        const loaded = [];
+        for (const session of (sessions || [])) {
+          const { data: attendanceRows, error: attendanceError } = await churchSupabase
+            .from('member_attendance').select('member_id,present,marked_at')
+            .eq('session_id', session.id);
+          if (attendanceError) throw attendanceError;
+          const attendanceByMember = new Map((attendanceRows || []).map(row => [row.member_id, row]));
+          const presentCount = allMembers.filter(member => attendanceByMember.get(member.id)?.present === true).length;
+          const absentees = allMembers.filter(member => attendanceByMember.get(member.id)?.present !== true);
+          loaded.push({
+            session,
+            absentees,
+            presentCount,
+            totalCount: allMembers.length
+          });
+        }
+        absenteeHistorySessions = loaded;
+        message.textContent = `${loaded.length} closed attendance session(s) loaded from Supabase.`;
+        renderAbsenteeHistorySessions();
+        if (selectedAbsenteeHistory) {
+          selectedAbsenteeHistory = loaded.find(item => item.session.id === selectedAbsenteeHistory.session.id) || null;
+        }
+        renderAbsenteeHistoryDetail();
+      } catch (err) {
+        message.textContent = 'Could not load absentee history: ' + err.message;
+        console.error('Absentee history error:', err);
+      }
+    }
+
+    async function selectAbsenteeHistorySession(sessionId) {
+      selectedAbsenteeHistory = absenteeHistorySessions.find(item => item.session.id === sessionId) || null;
+      renderAbsenteeHistoryDetail();
+    }
+
+    function downloadSelectedAbsenteeHistory() {
+      if (!selectedAbsenteeHistory) return;
+      const session = selectedAbsenteeHistory.session;
+      const rows = selectedAbsenteeHistory.absentees;
+      if (!rows.length) return alert('There are no absentees to download for this date.');
+      const csv = [
+        ['Attendance Date', 'Full Name', 'Church Serial Number', 'Sabbath School Class', 'Phone Number'],
+        ...rows.map(member => [session.session_date, member.full_name, member.member_number, member.member_class, member.phone])
+      ].map(row => row.map(value => `"${String(value ?? '').replace(/"/g, '""')}"`).join(',')).join('\r\n');
+      const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `absentees-${session.session_date}.csv`;
+      link.click();
+      URL.revokeObjectURL(url);
+    }
+
+    function printSelectedAbsenteeHistory() {
+      if (!selectedAbsenteeHistory) return;
+      const item = selectedAbsenteeHistory;
+      const dateLabel = formatDisplayDate(item.session.session_date);
+      const rows = item.absentees.map((member, index) => `
+        <tr><td>${index + 1}</td><td>${escapeHtml(member.full_name)}</td><td>${escapeHtml(member.member_number || '')}</td><td>${escapeHtml(member.member_class || '')}</td><td>${escapeHtml(member.phone || '')}</td></tr>
+      `).join('') || '<tr><td colspan="5">No absentees recorded.</td></tr>';
+      const area = document.getElementById('absenteeHistoryPrintArea');
+      area.innerHTML = `
+        <div class="report-header">
+          <img src="${CHURCH_LOGO}" alt="Church logo" class="report-logo" onerror="this.style.display='none'">
+          <div class="report-title-wrap"><h2>${escapeHtml(CHURCH_NAME)}</h2><p><strong>ABSENTEE HISTORY REPORT</strong></p><p>Attendance date: ${escapeHtml(dateLabel)}</p></div>
+        </div>
+        <p><strong>Total registered:</strong> ${item.totalCount} &nbsp; <strong>Present:</strong> ${item.presentCount} &nbsp; <strong>Absent:</strong> ${item.absentees.length}</p>
+        <table class="report-table"><thead><tr><th>#</th><th>Full Name</th><th>Church Serial</th><th>Class</th><th>Phone</th></tr></thead><tbody>${rows}</tbody></table>
+        <div class="report-footer"><div class="sign-box"><div class="sign-line">Prepared By</div></div><div class="sign-box"><div class="sign-line">Authorized Signature</div></div></div>
+      `;
+      document.body.classList.add('printing-absentee-history');
+      window.print();
+      document.body.classList.remove('printing-absentee-history');
+    }
+
+    document.getElementById('refreshAbsenteeHistoryBtn').addEventListener('click', loadAbsenteeHistory);
+    document.getElementById('absenteeHistoryTable').addEventListener('click', event => {
+      const button = event.target.closest('[data-history-session]');
+      if (button) selectAbsenteeHistorySession(button.dataset.historySession);
+    });
+    document.getElementById('downloadAbsenteeHistoryBtn').addEventListener('click', downloadSelectedAbsenteeHistory);
+    document.getElementById('printAbsenteeHistoryBtn').addEventListener('click', printSelectedAbsenteeHistory);
 
     const recordForm = document.getElementById('recordForm');
     recordForm.addEventListener('submit', (e) => {
