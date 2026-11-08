@@ -593,7 +593,86 @@
   }
 }
 
-  </style>
+  
+/* Clear, attractive attendance-rate indicator */
+.attendance-rate-panel {
+  margin-top: 16px;
+  padding: 14px 15px 11px;
+  border: 1px solid #e5edf8;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #f8fbff 0%, #f1f6ff 100%);
+}
+.attendance-rate-panel .progress-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 11px;
+}
+.attendance-rate-label {
+  color: #475569;
+  font-size: .88rem;
+  font-weight: 700;
+  letter-spacing: .01em;
+}
+.attendance-rate-value {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 64px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: #dbeafe;
+  color: #1d4ed8;
+  font-size: 1.05rem;
+  font-weight: 850;
+  line-height: 1.2;
+  font-variant-numeric: tabular-nums;
+  box-shadow: inset 0 0 0 1px rgba(29,78,216,.08);
+}
+.attendance-rate-track {
+  display: block;
+  width: 100%;
+  height: 13px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #dce5f1;
+  box-shadow: inset 0 1px 3px rgba(15,23,42,.12);
+}
+.attendance-rate-fill {
+  display: block;
+  height: 100%;
+  min-width: 0;
+  border-radius: inherit;
+  transition: width .65s cubic-bezier(.2,.8,.2,1);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.3);
+}
+.attendance-rate-scale {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 6px;
+  color: #94a3b8;
+  font-size: .7rem;
+  font-weight: 600;
+}
+@media (max-width: 480px) {
+  .attendance-rate-panel {
+    padding: 12px;
+    margin-top: 13px;
+  }
+  .attendance-rate-value {
+    min-width: 60px;
+    font-size: 1rem;
+  }
+  .attendance-rate-track {
+    height: 12px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .attendance-rate-fill { transition: none; }
+}
+
+</style>
 </head>
 <body>
   <main class="page">
@@ -931,9 +1010,19 @@
             <div class="meta-item"><strong>Last Seen:</strong> ${escapeHtml(formatDate(item.lastSeen))}</div>
             ${item.phone ? `<div class="meta-item"><strong>Phone:</strong> ${escapeHtml(item.phone)}</div>` : ''}
           </div>
-          <div class="progress-block">
-            <div class="progress-head"><span>Attendance Rate</span><strong>${item.attendanceRate}%</strong></div>
-            <div class="progress-track"><div class="progress-fill" style="width:${item.attendanceRate}%;background:${getProgressColor(item.attendanceRate)}"></div></div>
+          <div class="progress-block attendance-rate-panel">
+            <div class="progress-head">
+              <span class="attendance-rate-label">Attendance Rate</span>
+              <strong class="attendance-rate-value">${item.attendanceRate}%</strong>
+            </div>
+            <div class="progress-track attendance-rate-track"
+                 role="progressbar"
+                 aria-label="Attendance rate for ${escapeHtml(item.fullName)}"
+                 aria-valuemin="0" aria-valuemax="100"
+                 aria-valuenow="${item.attendanceRate}">
+              <div class="progress-fill attendance-rate-fill" style="width:${item.attendanceRate}%;background:${getProgressColor(item.attendanceRate)}"></div>
+            </div>
+            <div class="attendance-rate-scale"><span>0%</span><span>100%</span></div>
           </div>
         </div>
       `).join('');
