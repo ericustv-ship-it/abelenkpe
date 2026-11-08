@@ -1409,7 +1409,10 @@ img, video, iframe, canvas {
                 <button type="submit" class="btn btn-primary">Login as Admin</button>
               </div>
             </form>
-            <p class="muted" style="margin-top:12px;"></p>
+            <p style="margin-top:12px;">
+              <button type="button" class="btn btn-light" id="forgotAdminPasswordBtn">Forgot Password?</button>
+            </p>
+            <p class="muted" id="forgotPasswordMessage" style="margin-top:8px;" aria-live="polite"></p>
           </div>
           <div class="card">
             <div class="section-title">Apply for Administrator Access</div>
@@ -1441,6 +1444,26 @@ img, video, iframe, canvas {
             <div class="section-title">Access Note</div>
             <p class="muted">Members do not need an administrator login. New administrator applications must be approved by the Main Administrator before dashboard access is granted.</p>
           </div>
+        </div>
+
+        <div class="card hidden" id="adminPasswordRecoveryCard" style="max-width:560px;margin-top:18px;">
+          <div class="section-title">Set a New Administrator Password</div>
+          <p class="muted" style="margin-bottom:12px;">Enter and confirm your new password. This works for existing administrators and administrator applicants who have a registered account.</p>
+          <form id="adminPasswordRecoveryForm">
+            <div class="field">
+              <label for="recoveryNewPassword">New Password</label>
+              <input type="password" id="recoveryNewPassword" minlength="8" autocomplete="new-password" placeholder="At least 8 characters" required />
+            </div>
+            <div class="field">
+              <label for="recoveryConfirmPassword">Confirm New Password</label>
+              <input type="password" id="recoveryConfirmPassword" minlength="8" autocomplete="new-password" placeholder="Re-enter your new password" required />
+            </div>
+            <div class="btn-row">
+              <button type="submit" class="btn btn-primary" id="saveRecoveredPasswordBtn">Update Password</button>
+              <button type="button" class="btn btn-light" id="cancelPasswordRecoveryBtn">Back to Login</button>
+            </div>
+            <p class="muted" id="passwordRecoveryMessage" aria-live="polite"></p>
+          </form>
         </div>
       </section>
 
@@ -2310,6 +2333,14 @@ img, video, iframe, canvas {
 
     if (churchSupabase) {
       churchSupabase.auth.onAuthStateChange((event) => {
+        if (event === 'PASSWORD_RECOVERY') {
+          currentView = 'admin';
+          showAdminLoginOnly();
+          recoveryCard.classList.remove('hidden');
+          forgotPasswordMessage.textContent = '';
+          passwordRecoveryMessage.textContent = 'Choose a new password for your administrator account.';
+          return;
+        }
         if (event === 'INITIAL_SESSION' || event === 'SIGNED_IN') return;
         if (event === 'SIGNED_OUT') {
           isAdminLoggedIn = false;
@@ -2341,6 +2372,100 @@ img, video, iframe, canvas {
       currentView = 'member';
       await loadChurchData();
       updateViewMode();
+    });
+
+
+    // Password recovery for existing administrators and administrator applicants.
+    const forgotAdminPasswordBtn = document.getElementById('forgotAdminPasswordBtn');
+    const forgotPasswordMessage = document.getElementById('forgotPasswordMessage');
+    const recoveryCard = document.getElementById('adminPasswordRecoveryCard');
+    const passwordRecoveryMessage = document.getElementById('passwordRecoveryMessage');
+
+    forgotAdminPasswordBtn?.addEventListener('click', async () => {
+      if (!churchSupabase) {
+        forgotPasswordMessage.textContent = 'Supabase is not connected. Please try again later.';
+        return;
+      }
+
+      const email = document.getElementById('adminEmail').value.trim().toLowerCase();
+      if (!email) {
+        forgotPasswordMessage.textContent = 'Enter your administrator account email above, then click Forgot Password again.';
+        document.getElementById('adminEmail').focus();
+        return;
+      }
+
+      forgotAdminPasswordBtn.disabled = true;
+      forgotAdminPasswordBtn.textContent = 'Sending reset link...';
+      forgotPasswordMessage.textContent = '';
+
+      try {
+        const redirectTo = window.location.origin + window.location.pathname;
+        const { error } = await churchSupabase.auth.resetPasswordForEmail(email, {
+          redirectTo
+        });
+        if (error) throw error;
+
+        // Use a neutral message so the page does not reveal whether an email is registered.
+        forgotPasswordMessage.textContent =
+          'If an account exists for this email, a password reset link has been sent. Check your inbox and spam folder.';
+      } catch (err) {
+        forgotPasswordMessage.textContent = 'Could not send reset link: ' + err.message;
+      } finally {
+        forgotAdminPasswordBtn.disabled = false;
+        forgotAdminPasswordBtn.textContent = 'Forgot Password?';
+      }
+    });
+
+    document.getElementById('adminPasswordRecoveryForm')?.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      if (!churchSupabase) {
+        passwordRecoveryMessage.textContent = 'Supabase is not connected.';
+        return;
+      }
+
+      const newPassword = document.getElementById('recoveryNewPassword').value;
+      const confirmPassword = document.getElementById('recoveryConfirmPassword').value;
+      const saveButton = document.getElementById('saveRecoveredPasswordBtn');
+
+      if (newPassword.length < 8) {
+        passwordRecoveryMessage.textContent = 'Your password must contain at least 8 characters.';
+        return;
+      }
+      if (newPassword !== confirmPassword) {
+        passwordRecoveryMessage.textContent = 'The passwords do not match.';
+        return;
+      }
+
+      saveButton.disabled = true;
+      saveButton.textContent = 'Updating...';
+      passwordRecoveryMessage.textContent = '';
+
+      try {
+        const { error } = await churchSupabase.auth.updateUser({ password: newPassword });
+        if (error) throw error;
+
+        passwordRecoveryMessage.textContent =
+          'Your password has been updated. You can now sign in with your new password.';
+        document.getElementById('adminPasswordRecoveryForm').reset();
+        await churchSupabase.auth.signOut();
+        recoveryCard.classList.add('hidden');
+        currentView = 'admin';
+        showAdminLoginOnly();
+        forgotPasswordMessage.textContent = 'Password updated successfully. Please log in with your new password.';
+      } catch (err) {
+        passwordRecoveryMessage.textContent = 'Could not update password: ' + err.message;
+      } finally {
+        saveButton.disabled = false;
+        saveButton.textContent = 'Update Password';
+      }
+    });
+
+    document.getElementById('cancelPasswordRecoveryBtn')?.addEventListener('click', () => {
+      recoveryCard.classList.add('hidden');
+      passwordRecoveryMessage.textContent = '';
+      document.getElementById('adminPasswordRecoveryForm').reset();
+      currentView = 'admin';
+      showAdminLoginOnly();
     });
 
     document.getElementById('adminSignupForm').addEventListener('submit', async (e) => {
