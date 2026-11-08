@@ -1336,6 +1336,7 @@ img, video, iframe, canvas {
     Member Status & Transfers
 </button>
       <button class="nav-btn" data-section="records" data-role="admin">Church Records</button>
+      <button class="nav-btn" data-section="finance" data-role="admin" data-staff-roles="main,treasurer,pastor">Church Finance</button>
       <button class="nav-btn" data-section="admin-management" data-role="admin" data-main-only="true">Administrator Management</button>
       <button class="nav-btn active" data-section="member-home" data-role="member">Member Home</button>
       <button class="nav-btn" data-section="member-self-register" data-role="member">Member Registration</button>
@@ -1479,8 +1480,8 @@ img, video, iframe, canvas {
           <div id="adminManagementMessage" class="muted" style="margin:10px 0;" aria-live="polite"></div>
           <div class="table-wrap">
             <table>
-              <thead><tr><th>Name</th><th>User ID</th><th>Level</th><th>Status</th><th>Actions</th></tr></thead>
-              <tbody id="adminApplicationsTable"><tr><td colspan="5">Administrator list will appear here.</td></tr></tbody>
+              <thead><tr><th>Name</th><th>User ID</th><th>Level</th><th>Staff Role</th><th>Status</th><th>Actions</th></tr></thead>
+              <tbody id="adminApplicationsTable"><tr><td colspan="6">Administrator list will appear here.</td></tr></tbody>
             </table>
           </div>
         </div>
@@ -1950,35 +1951,75 @@ img, video, iframe, canvas {
       </section>
 
       <section class="section" id="records">
+        <div class="card" style="margin-bottom:16px;">
+          <div class="section-title">Church Records & Secretariat</div>
+          <p class="muted">Upload and retain official church documents in secure Supabase Storage. Access depends on the staff role assigned by the Main Administrator.</p>
+          <p id="recordsRoleNotice" class="muted" style="margin-top:8px;" aria-live="polite"></p>
+        </div>
         <div class="grid-2">
-          <div class="card">
-            <div class="section-title">Upload Church / Secretary Records</div>
+          <div class="card" id="recordUploadCard">
+            <div class="section-title">Upload Church Record</div>
             <form id="recordForm">
-              <div class="field">
-                <label>Record Title</label>
-                <input type="text" id="recordTitle" required />
-              </div>
-              <div class="field">
-                <label>Category</label>
+              <div class="field"><label for="recordTitle">Record Title</label><input type="text" id="recordTitle" maxlength="160" required /></div>
+              <div class="field"><label for="recordCategory">Category</label>
                 <select id="recordCategory" required>
                   <option value="">Select category</option>
-                  <option>Church Record</option>
-                  <option>Secretary Record</option>
-                  <option>Minutes</option>
-                  <option>Report</option>
+                  <option>Church Record</option><option>Secretary Record</option><option>Minutes</option>
+                  <option>Resolution</option><option>Report</option><option>Correspondence</option><option>Other</option>
                 </select>
               </div>
-              <div class="field">
-                <label>Select File</label>
-                <input type="file" id="recordFile" required />
-              </div>
-              <button type="submit" class="btn btn-primary">Upload Record</button>
+              <div class="field"><label for="recordDate">Record Date</label><input type="date" id="recordDate" /></div>
+              <div class="field"><label for="recordDescription">Description / Notes</label><textarea id="recordDescription" maxlength="1000" placeholder="Brief description (optional)"></textarea></div>
+              <div class="field"><label for="recordFile">Select Document</label><input type="file" id="recordFile" accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.jpg,.jpeg,.png" required /></div>
+              <button type="submit" class="btn btn-primary" id="uploadRecordBtn">Upload Record</button>
+              <p id="recordUploadMessage" class="muted" aria-live="polite"></p>
             </form>
           </div>
-
           <div class="card">
-            <div class="section-title">Stored Records</div>
-            <div id="recordsList" class="muted">No records uploaded yet.</div>
+            <div class="toolbar"><div class="section-title">Stored Church Records</div><button type="button" class="btn btn-light" id="refreshRecordsBtn">Refresh</button></div>
+            <input class="search-input" id="recordsSearch" placeholder="Search title or category..." />
+            <div id="recordsList" class="muted" style="margin-top:12px;">Records will appear here.</div>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="finance">
+        <div class="card" style="margin-bottom:16px;">
+          <div class="section-title">Church Finance</div>
+          <p class="muted">Record tithe, offerings, donations and other church income. Financial entries are visible only to authorised staff roles.</p>
+        </div>
+        <div class="stats" style="margin-bottom:16px;">
+          <div class="card stat-card"><h3>Total Recorded Income</h3><div class="value" id="financeTotal">GH₵0.00</div></div>
+          <div class="card stat-card"><h3>This Month</h3><div class="value" id="financeMonthTotal">GH₵0.00</div></div>
+          <div class="card stat-card"><h3>Transactions</h3><div class="value" id="financeCount">0</div></div>
+          <div class="card stat-card"><h3>Current Staff Role</h3><div class="value" id="financeRole" style="font-size:1.1rem;">—</div></div>
+        </div>
+        <div class="grid-2">
+          <div class="card" id="financeEntryCard">
+            <div class="section-title">Record Income</div>
+            <form id="financeForm">
+              <div class="field">
+                <label for="financeMemberSearch">Search Paying Member</label>
+                <input type="search" id="financeMemberSearch" autocomplete="off"
+                  placeholder="Search by name, church serial number or phone..." />
+                <small class="muted">Select a registered member before saving the payment.</small>
+                <div id="financeMemberResults" class="member-card hidden" style="margin-top:8px;" role="listbox"></div>
+                <div id="financeSelectedMember" class="member-card hidden" style="margin-top:8px;background:#eff6ff;" aria-live="polite"></div>
+                <input type="hidden" id="financeMemberId" />
+              </div>
+              <div class="field"><label for="financeType">Income Type</label><select id="financeType" required><option value="">Select type</option><option>Tithe</option><option>Offering</option><option>Donation</option><option>Thanksgiving</option><option>Other</option></select></div>
+              <div class="field"><label for="financeAmount">Amount (GH₵)</label><input type="number" id="financeAmount" min="0.01" step="0.01" required /></div>
+              <div class="field"><label for="financeDate">Date Received</label><input type="date" id="financeDate" required /></div>
+              <div class="field"><label for="financeReference">Reference / Receipt No. (optional)</label><input type="text" id="financeReference" maxlength="100" /></div>
+              <div class="field"><label for="financeNotes">Notes (optional)</label><textarea id="financeNotes" maxlength="1000"></textarea></div>
+              <button type="submit" class="btn btn-primary" id="saveFinanceBtn">Save Transaction</button>
+              <p id="financeMessage" class="muted" aria-live="polite"></p>
+            </form>
+          </div>
+          <div class="card">
+            <div class="toolbar"><div class="section-title">Income Transactions</div><button type="button" class="btn btn-light" id="refreshFinanceBtn">Refresh</button></div>
+            <div class="field"><label for="financeFilter">Filter by type</label><select id="financeFilter"><option value="">All income</option><option>Tithe</option><option>Offering</option><option>Donation</option><option>Thanksgiving</option><option>Other</option></select></div>
+            <div id="financeList" class="muted" style="margin-top:12px;">Transactions will appear here.</div>
           </div>
         </div>
       </section>
@@ -2033,6 +2074,8 @@ img, video, iframe, canvas {
     let currentView = 'member';
     let isAdminLoggedIn = false;
     let currentAdminProfile = null;
+    const STAFF_ROLES = ['main', 'secretary', 'treasurer', 'pastor'];
+    const STAFF_ROLE_LABELS = { main: 'Main Administrator', secretary: 'Secretary', treasurer: 'Treasurer', pastor: 'Pastor' };
     let attendanceOpen = false;
     let registrationOpen = false;
     let attendanceOpenedAt = '';
@@ -2205,12 +2248,39 @@ img, video, iframe, canvas {
         return false;
       }
       const { data: profile, error } = await churchSupabase.from('profiles')
-        .select('id, full_name, role, admin_level, approval_status')
+        .select('id, full_name, role, admin_level, approval_status, staff_role')
         .eq('id', user.id).maybeSingle();
       if (error) throw error;
       currentAdminProfile = profile || null;
       isAdminLoggedIn = profile?.role === 'admin' && profile?.approval_status === 'approved';
       return isAdminLoggedIn;
+    }
+
+    function getStaffRole() {
+      if (!isAdminLoggedIn) return '';
+      return currentAdminProfile?.staff_role || (currentAdminProfile?.admin_level === 'main' ? 'main' : 'secretary');
+    }
+
+    function canManageStaff() { return isAdminLoggedIn && getStaffRole() === 'main'; }
+    function canManageRecords() { return isAdminLoggedIn && ['main', 'secretary'].includes(getStaffRole()); }
+    function canViewRecords() { return isAdminLoggedIn && ['main', 'secretary', 'pastor'].includes(getStaffRole()); }
+    function canViewFinance() { return isAdminLoggedIn && ['main', 'treasurer', 'pastor'].includes(getStaffRole()); }
+    function canEditFinance() { return isAdminLoggedIn && ['main', 'treasurer'].includes(getStaffRole()); }
+
+    function updateStaffInterface() {
+      const role = getStaffRole();
+      const financeNav = document.querySelector('.nav-btn[data-section="finance"]');
+      const recordsNav = document.querySelector('.nav-btn[data-section="records"]');
+      if (recordsNav) recordsNav.style.display = canViewRecords() ? 'block' : 'none';
+      if (financeNav) financeNav.style.display = canViewFinance() ? 'block' : 'none';
+      const uploadCard = document.getElementById('recordUploadCard');
+      if (uploadCard) uploadCard.classList.toggle('hidden', !canManageRecords());
+      const entryCard = document.getElementById('financeEntryCard');
+      if (entryCard) entryCard.classList.toggle('hidden', !canEditFinance());
+      const roleNotice = document.getElementById('recordsRoleNotice');
+      if (roleNotice) roleNotice.textContent = `Signed in as: ${STAFF_ROLE_LABELS[role] || 'Staff'}.`;
+      const financeRole = document.getElementById('financeRole');
+      if (financeRole) financeRole.textContent = STAFF_ROLE_LABELS[role] || '—';
     }
 
     async function saveSetting(key, value) {
@@ -2280,7 +2350,7 @@ img, video, iframe, canvas {
     const CHURCH_LOGO = "sda logo.png";
 
     function goToSection(sectionId) {
-      const protectedSections = ["dashboard", "member-registration", "attendance", "absentees", "absentee-history", "member-status", "records", "admin-management"];
+      const protectedSections = ["dashboard", "member-registration", "attendance", "absentees", "absentee-history", "member-status", "records", "finance", "admin-management"];
       if (protectedSections.includes(sectionId) && !isAdminLoggedIn) {
         currentView = 'admin';
         showAdminLoginOnly();
@@ -2575,19 +2645,19 @@ img, video, iframe, canvas {
     });
 
     async function loadAdminApplications() {
-      if (!isAdminLoggedIn || currentAdminProfile?.admin_level !== 'main') return;
+      if (!canManageStaff()) return;
       const tbody = document.getElementById('adminApplicationsTable');
       const message = document.getElementById('adminManagementMessage');
       tbody.innerHTML = '<tr><td colspan="5">Loading administrators...</td></tr>';
       message.textContent = '';
       try {
         const { data, error } = await churchSupabase.from('profiles')
-          .select('id, full_name, role, admin_level, approval_status, created_at')
+          .select('id, full_name, role, admin_level, approval_status, staff_role, created_at')
           .order('created_at', { ascending: false });
         if (error) throw error;
         const admins = (data || []).filter(profile => profile.role === 'admin');
         if (!admins.length) {
-          tbody.innerHTML = '<tr><td colspan="5">No administrator applications found.</td></tr>';
+          tbody.innerHTML = '<tr><td colspan="6">No administrator applications found.</td></tr>';
           message.textContent = 'No administrator accounts found.';
           return;
         }
@@ -2596,6 +2666,8 @@ img, video, iframe, canvas {
           const safeId = String(profile.id).replace(/[^a-zA-Z0-9-]/g, '');
           const name = escapeAdminHtml(profile.full_name || 'Unnamed applicant');
           const level = escapeAdminHtml(profile.admin_level || 'additional');
+          const staffRole = profile.staff_role || (profile.admin_level === 'main' ? 'main' : 'secretary');
+          const roleOptions = STAFF_ROLES.map(role => `<option value="${role}" ${staffRole === role ? 'selected' : ''}>${STAFF_ROLE_LABELS[role]}</option>`).join('');
           const actionButtons = profile.admin_level === 'main'
             ? '<span class="muted">Main Admin</span>'
             : `<div class="btn-row">
@@ -2603,11 +2675,11 @@ img, video, iframe, canvas {
                 ${status !== 'rejected' ? `<button class="btn btn-warning" type="button" onclick="reviewAdminAccess('${safeId}','rejected')">Reject</button>` : ''}
                 ${status !== 'revoked' ? `<button class="btn btn-danger" type="button" onclick="reviewAdminAccess('${safeId}','revoked')">Revoke</button>` : ''}
               </div>`;
-          return `<tr><td>${name}</td><td><small>${safeId}</small></td><td>${level}</td><td><span class="pill ${status === 'approved' ? 'present' : status === 'pending' ? 'open' : 'absent'}">${escapeAdminHtml(status)}</span></td><td>${actionButtons}</td></tr>`;
+          return `<tr><td>${name}</td><td><small>${safeId}</small></td><td>${level}</td><td><select aria-label="Staff role for ${name}" onchange="changeChurchStaffRole('${safeId}',this.value)" ${profile.admin_level === 'main' ? 'disabled' : ''}>${roleOptions}</select></td><td><span class="pill ${status === 'approved' ? 'present' : status === 'pending' ? 'open' : 'absent'}">${escapeAdminHtml(status)}</span></td><td>${actionButtons}</td></tr>`;
         }).join('');
         message.textContent = `Showing ${admins.length} administrator account(s).`;
       } catch (err) {
-        tbody.innerHTML = '<tr><td colspan="5">Could not load administrator accounts.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="6">Could not load administrator accounts.</td></tr>';
         message.textContent = 'Error: ' + err.message;
       }
     }
@@ -2638,6 +2710,18 @@ img, video, iframe, canvas {
       } catch (err) {
         alert('Could not update administrator status: ' + err.message);
       }
+    };
+
+
+    window.changeChurchStaffRole = async function(userId, staffRole) {
+      if (!canManageStaff()) return alert('Only the Main Administrator can assign staff roles.');
+      if (!STAFF_ROLES.includes(staffRole) || staffRole === 'main') return alert('Invalid staff role.');
+      if (!confirm(`Assign ${STAFF_ROLE_LABELS[staffRole]} access to this administrator?`)) { await loadAdminApplications(); return; }
+      try {
+        const { error } = await churchSupabase.rpc('set_church_staff_role', { target_user_id: userId, new_staff_role: staffRole });
+        if (error) throw error;
+        await loadAdminApplications(); alert('Staff role updated successfully.');
+      } catch (err) { alert('Could not update staff role: ' + err.message); await loadAdminApplications(); }
     };
 
     document.getElementById('refreshAdminListBtn').addEventListener('click', loadAdminApplications);
@@ -3818,50 +3902,97 @@ const whatsappLink = whatsappNumber
     document.getElementById('downloadAbsenteeHistoryBtn').addEventListener('click', downloadSelectedAbsenteeHistory);
     document.getElementById('printAbsenteeHistoryBtn').addEventListener('click', printSelectedAbsenteeHistory);
 
-    const recordForm = document.getElementById('recordForm');
-    recordForm.addEventListener('submit', (e) => {
-      e.preventDefault();
-      const title = document.getElementById('recordTitle').value.trim();
-      const category = document.getElementById('recordCategory').value;
-      const fileInput = document.getElementById('recordFile');
-      const file = fileInput.files[0];
+    const RECORD_BUCKET = 'church-records';
+    const MAX_CHURCH_RECORD_SIZE = 15 * 1024 * 1024;
 
-      if (!file) return;
-
-      const fileURL = URL.createObjectURL(file);
-      records.push({
-        id: Date.now(),
-        title,
-        category,
-        fileName: file.name,
-        fileURL
-      });
-
-      saveRecords();
-      recordForm.reset();
-      renderRecords();
-    });
+    async function loadChurchRecords() {
+      const wrap = document.getElementById('recordsList');
+      if (!wrap || !canViewRecords()) return;
+      wrap.innerHTML = '<p class="muted">Loading church records...</p>';
+      try {
+        const { data, error } = await churchSupabase.from('church_records')
+          .select('id,title,category,record_date,description,file_name,storage_path,created_at')
+          .order('created_at', { ascending: false });
+        if (error) throw error;
+        records = data || [];
+        renderRecords();
+      } catch (err) {
+        wrap.innerHTML = `<p class="muted">Could not load records: ${escapeHtml(err.message)}</p>`;
+      }
+    }
 
     function renderRecords() {
       const wrap = document.getElementById('recordsList');
-      if (!records.length) {
-        wrap.innerHTML = '<p class="muted">No records uploaded yet.</p>';
-        return;
-      }
-
-      wrap.innerHTML = records.map(record => `
-        <div class="record-item">
-          <div>
-            <strong>${record.title}</strong>
-            <p class="muted">${record.category} • ${record.fileName}</p>
-          </div>
-          <div class="btn-row">
-            <a class="btn btn-light" href="${record.fileURL}" download="${record.fileName}">Download</a>
-            <button class="btn btn-danger" onclick="deleteRecord(${record.id})">Delete</button>
-          </div>
-        </div>
-      `).join('');
+      if (!wrap) return;
+      const term = (document.getElementById('recordsSearch')?.value || '').trim().toLowerCase();
+      const filtered = records.filter(r => `${r.title} ${r.category} ${r.file_name}`.toLowerCase().includes(term));
+      if (!filtered.length) { wrap.innerHTML = '<p class="muted">No matching church records found.</p>'; return; }
+      wrap.innerHTML = filtered.map(record => `
+        <div class="record-item"><div style="min-width:0;flex:1;">
+          <strong>${escapeHtml(record.title)}</strong>
+          <p class="muted">${escapeHtml(record.category)} • ${escapeHtml(record.file_name)}</p>
+          <p class="muted">${record.record_date ? escapeHtml(record.record_date) : 'Date not specified'}${record.description ? ' • ' + escapeHtml(record.description) : ''}</p>
+        </div><div class="btn-row">
+          <button class="btn btn-light" type="button" onclick="openChurchRecord('${record.id}')">View / Download</button>
+          ${canManageRecords() ? `<button class="btn btn-danger" type="button" onclick="deleteChurchRecord('${record.id}')">Delete</button>` : ''}
+        </div></div>`).join('');
     }
+
+    window.openChurchRecord = async function(id) {
+      if (!canViewRecords()) return alert('You do not have permission to view church records.');
+      const record = records.find(r => r.id === id); if (!record) return;
+      const { data, error } = await churchSupabase.storage.from(RECORD_BUCKET).createSignedUrl(record.storage_path, 60);
+      if (error) return alert('Could not open record: ' + error.message);
+      window.open(data.signedUrl, '_blank', 'noopener');
+    };
+
+    window.deleteChurchRecord = async function(id) {
+      if (!canManageRecords()) return alert('Only the Main Administrator or Secretary can delete church records.');
+      const record = records.find(r => r.id === id);
+      if (!record || !confirm(`Delete "${record.title}" permanently?`)) return;
+      try {
+        const { error: storageError } = await churchSupabase.storage.from(RECORD_BUCKET).remove([record.storage_path]);
+        if (storageError) throw storageError;
+        const { error } = await churchSupabase.from('church_records').delete().eq('id', id);
+        if (error) throw error;
+        await loadChurchRecords();
+      } catch (err) { alert('Could not delete record: ' + err.message); }
+    };
+
+    document.getElementById('recordForm').addEventListener('submit', async event => {
+      event.preventDefault();
+      if (!canManageRecords()) return alert('Only the Main Administrator or Secretary can upload records.');
+      const file = document.getElementById('recordFile').files[0];
+      const message = document.getElementById('recordUploadMessage');
+      const button = document.getElementById('uploadRecordBtn');
+      if (!file) return;
+      if (file.size > MAX_CHURCH_RECORD_SIZE) { message.textContent = 'File is too large. Maximum size is 15 MB.'; return; }
+      if (!/\.(pdf|doc|docx|xls|xlsx|ppt|pptx|jpe?g|png)$/i.test(file.name)) { message.textContent = 'Unsupported file type.'; return; }
+      button.disabled = true; button.textContent = 'Uploading...'; message.textContent = '';
+      const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+      const path = `${Date.now()}-${crypto.randomUUID()}-${safeName}`;
+      try {
+        const { error: uploadError } = await churchSupabase.storage.from(RECORD_BUCKET).upload(path, file, {
+          cacheControl: '3600', upsert: false, contentType: file.type || 'application/octet-stream'
+        });
+        if (uploadError) throw uploadError;
+        const payload = {
+          title: document.getElementById('recordTitle').value.trim(),
+          category: document.getElementById('recordCategory').value,
+          record_date: document.getElementById('recordDate').value || null,
+          description: document.getElementById('recordDescription').value.trim() || null,
+          file_name: file.name, storage_path: path,
+          uploaded_by: (await churchSupabase.auth.getUser()).data.user?.id
+        };
+        const { error: insertError } = await churchSupabase.from('church_records').insert(payload);
+        if (insertError) { await churchSupabase.storage.from(RECORD_BUCKET).remove([path]); throw insertError; }
+        event.currentTarget.reset(); message.textContent = 'Church record uploaded and saved successfully.';
+        await loadChurchRecords();
+      } catch (err) { message.textContent = 'Upload failed: ' + err.message; }
+      finally { button.disabled = false; button.textContent = 'Upload Record'; }
+    });
+    document.getElementById('refreshRecordsBtn').addEventListener('click', loadChurchRecords);
+    document.getElementById('recordsSearch').addEventListener('input', renderRecords);
 
   let recycleBin = JSON.parse(localStorage.getItem('church_recycle_bin') || '[]');
 
@@ -3893,6 +4024,156 @@ window.deleteRecord = function(id) {
 
   alert('Record moved to recycle bin successfully.');
 }
+
+    function financeMemberSearchText(member) {
+      return [member.fullName, member.memberNumber, member.phone]
+        .map(value => String(value || '').toLowerCase()).join(' ');
+    }
+
+    function renderFinanceMemberSearchResults(matches) {
+      const results = document.getElementById('financeMemberResults');
+      if (!results) return;
+      if (!matches.length) {
+        results.innerHTML = '<p class="muted">No active registered member matched your search.</p>';
+        results.classList.remove('hidden');
+        return;
+      }
+      results.innerHTML = matches.slice(0, 12).map(member => `
+        <button type="button" class="btn btn-light" role="option"
+          data-finance-member-id="${escapeHtml(member.id)}"
+          style="display:block;width:100%;text-align:left;margin:5px 0;">
+          <strong>${escapeHtml(member.fullName)}</strong>
+          <span class="muted"> — ${escapeHtml(member.memberNumber || 'No serial number')} • ${escapeHtml(member.phone || 'No phone')}</span>
+        </button>`).join('');
+      results.classList.remove('hidden');
+    }
+
+    function clearFinanceMemberSelection() {
+      const search = document.getElementById('financeMemberSearch');
+      const selected = document.getElementById('financeSelectedMember');
+      const results = document.getElementById('financeMemberResults');
+      const hidden = document.getElementById('financeMemberId');
+      if (search) search.value = '';
+      if (hidden) hidden.value = '';
+      if (selected) { selected.innerHTML = ''; selected.classList.add('hidden'); }
+      if (results) { results.innerHTML = ''; results.classList.add('hidden'); }
+    }
+
+    function selectFinanceMember(memberId) {
+      const member = members.find(item => String(item.id) === String(memberId));
+      if (!member) return;
+      document.getElementById('financeMemberId').value = member.id;
+      document.getElementById('financeMemberSearch').value = member.fullName;
+      const selected = document.getElementById('financeSelectedMember');
+      selected.innerHTML = `<strong>Selected member: ${escapeHtml(member.fullName)}</strong>
+        <p class="muted">Church No.: ${escapeHtml(member.memberNumber || 'N/A')} • Phone: ${escapeHtml(member.phone || 'Not provided')}</p>
+        <button type="button" class="btn btn-light" id="changeFinanceMemberBtn">Change member</button>`;
+      selected.classList.remove('hidden');
+      document.getElementById('financeMemberResults').classList.add('hidden');
+      document.getElementById('changeFinanceMemberBtn').addEventListener('click', () => {
+        document.getElementById('financeMemberId').value = '';
+        selected.classList.add('hidden');
+        document.getElementById('financeMemberSearch').focus();
+      });
+    }
+
+    function buildFinanceWhatsAppLink(row) {
+      const number = normalizeWhatsAppNumber(row.member_phone || '');
+      if (!number) return '';
+      const message = `Hello ${row.member_name || 'Church Member'}, thank you for your payment to Abelenkpe Seventh-day Adventist Church.\n\nPayment details:\nType: ${row.income_type}\nAmount: GH₵${Number(row.amount || 0).toFixed(2)}\nDate: ${row.received_on || ''}${row.reference ? `\nReceipt/Reference: ${row.reference}` : ''}\n\nMay God richly bless you.`;
+      return `https://wa.me/${number}?text=${encodeURIComponent(message)}`;
+    }
+
+    document.getElementById('financeMemberSearch').addEventListener('input', event => {
+      const term = event.target.value.trim().toLowerCase();
+      document.getElementById('financeMemberId').value = '';
+      document.getElementById('financeSelectedMember').classList.add('hidden');
+      if (!term) {
+        document.getElementById('financeMemberResults').classList.add('hidden');
+        return;
+      }
+      const matches = members.filter(member => financeMemberSearchText(member).includes(term));
+      renderFinanceMemberSearchResults(matches);
+    });
+
+    document.getElementById('financeMemberResults').addEventListener('click', event => {
+      const button = event.target.closest('[data-finance-member-id]');
+      if (button) selectFinanceMember(button.dataset.financeMemberId);
+    });
+
+    async function loadFinanceTransactions() {
+      if (!canViewFinance()) return;
+      const list = document.getElementById('financeList');
+      list.innerHTML = '<p class="muted">Loading transactions...</p>';
+      try {
+        let query = churchSupabase.from('church_finance_transactions')
+          .select('id,income_type,amount,received_on,reference,notes,member_id,member_name,member_number,member_phone,created_at')
+          .order('received_on', { ascending: false }).limit(500);
+        const filter = document.getElementById('financeFilter')?.value || '';
+        if (filter) query = query.eq('income_type', filter);
+        const { data, error } = await query; if (error) throw error;
+        const rows = data || [];
+        const { data: totals, error: totalsError } = await churchSupabase.rpc('get_church_finance_summary');
+        if (totalsError) throw totalsError;
+        document.getElementById('financeTotal').textContent = `GH₵${Number(totals?.total_income || 0).toFixed(2)}`;
+        document.getElementById('financeMonthTotal').textContent = `GH₵${Number(totals?.month_income || 0).toFixed(2)}`;
+        document.getElementById('financeCount').textContent = totals?.transaction_count ?? rows.length;
+        list.innerHTML = rows.length ? rows.map(row => `
+          <div class="record-item"><div><strong>${escapeHtml(row.income_type)} — GH₵${Number(row.amount).toFixed(2)}</strong>
+          <p class="muted">${escapeHtml(row.received_on)}${row.reference ? ' • Ref: ' + escapeHtml(row.reference) : ''}</p>
+          ${row.member_name ? `<p class="muted">Paid by: ${escapeHtml(row.member_name)}${row.member_number ? ' • ' + escapeHtml(row.member_number) : ''}</p>` : '<p class="muted">Member: Not linked</p>'}
+          ${row.notes ? `<p class="muted">${escapeHtml(row.notes)}</p>` : ''}</div>
+          <div class="btn-row">
+            ${row.member_phone ? `<a class="btn btn-success" target="_blank" rel="noopener" href="${escapeHtml(buildFinanceWhatsAppLink(row))}">WhatsApp Receipt</a>` : ''}
+            ${canEditFinance() ? `<button class="btn btn-danger" type="button" onclick="deleteFinanceTransaction('${row.id}')">Delete</button>` : ''}
+          </div></div>`).join('') : '<p class="muted">No transactions found.</p>';
+      } catch (err) { list.innerHTML = `<p class="muted">Could not load finance records: ${escapeHtml(err.message)}</p>`; }
+    }
+
+    document.getElementById('financeForm').addEventListener('submit', async event => {
+      event.preventDefault();
+      if (!canEditFinance()) return alert('Only the Main Administrator or Treasurer can record income.');
+      const button = document.getElementById('saveFinanceBtn'), message = document.getElementById('financeMessage');
+      button.disabled = true; button.textContent = 'Saving...'; message.textContent = '';
+      try {
+        const amount = Number(document.getElementById('financeAmount').value);
+        if (!Number.isFinite(amount) || amount <= 0) throw new Error('Enter a valid amount greater than zero.');
+        const user = (await churchSupabase.auth.getUser()).data.user;
+        const selectedMemberId = document.getElementById('financeMemberId').value;
+        if (!selectedMemberId) throw new Error('Please search for and select the registered member who made this payment.');
+        const selectedMember = members.find(member => String(member.id) === String(selectedMemberId));
+        if (!selectedMember) throw new Error('The selected member could not be verified. Search and select the member again.');
+        const paymentRow = {
+          income_type: document.getElementById('financeType').value, amount,
+          received_on: document.getElementById('financeDate').value,
+          reference: document.getElementById('financeReference').value.trim() || null,
+          notes: document.getElementById('financeNotes').value.trim() || null,
+          member_id: selectedMember.id,
+          member_name: selectedMember.fullName,
+          member_number: selectedMember.memberNumber || null,
+          member_phone: selectedMember.phone || null,
+          recorded_by: user?.id
+        };
+        const { error } = await churchSupabase.from('church_finance_transactions').insert(paymentRow);
+        if (error) throw error;
+        event.currentTarget.reset();
+        document.getElementById('financeDate').value = todayLocalDate();
+        clearFinanceMemberSelection();
+        message.textContent = 'Payment saved successfully. Use the WhatsApp Receipt button in the transaction list to send the member a message.';
+        await loadFinanceTransactions();
+      } catch (err) { message.textContent = 'Could not save transaction: ' + err.message; }
+      finally { button.disabled = false; button.textContent = 'Save Transaction'; }
+    });
+
+    window.deleteFinanceTransaction = async function(id) {
+      if (!canEditFinance()) return alert('Only the Main Administrator or Treasurer can delete finance entries.');
+      if (!confirm('Delete this finance transaction? This action cannot be undone.')) return;
+      const { error } = await churchSupabase.from('church_finance_transactions').delete().eq('id', id);
+      if (error) alert('Could not delete transaction: ' + error.message); else await loadFinanceTransactions();
+    };
+    document.getElementById('refreshFinanceBtn').addEventListener('click', loadFinanceTransactions);
+    document.getElementById('financeFilter').addEventListener('change', loadFinanceTransactions);
+    document.getElementById('financeDate').value = todayLocalDate();
 
     function renderBirthdays() {
       const now = new Date();
