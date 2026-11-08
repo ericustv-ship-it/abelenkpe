@@ -466,6 +466,133 @@
         padding: 24px;
       }
     }
+  
+/* Attendance trend list: organized, readable and responsive */
+.trend-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 20px;
+  margin-bottom: 24px;
+}
+.trend-list-panel,
+.followup-panel {
+  min-width: 0;
+}
+.trend-heading-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+.trend-heading-row .section-title {
+  margin-bottom: 4px;
+}
+.trend-subtitle {
+  font-size: .9rem;
+}
+.trend-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 34px;
+  padding: 7px 13px;
+  border-radius: 999px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-size: .82rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
+.trend-record-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+.trend-record-grid .record-card {
+  min-width: 0;
+  margin: 0;
+  padding: 17px;
+  border: 1px solid #e2e8f0;
+  border-radius: 15px;
+  box-shadow: 0 4px 14px rgba(15, 23, 42, .045);
+}
+.trend-record-grid .record-card:hover {
+  transform: translateY(-2px);
+  border-color: #bfdbfe;
+}
+.trend-record-grid .record-top {
+  align-items: center;
+  padding-bottom: 12px;
+  margin-bottom: 12px;
+  border-bottom: 1px solid #eef2f7;
+}
+.trend-record-grid .record-top h4 {
+  font-size: 1rem;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+.trend-record-grid .record-meta {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 9px 14px;
+}
+.trend-record-grid .meta-item {
+  min-width: 0;
+  font-size: .87rem;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+.trend-record-grid .meta-item strong {
+  color: #334155;
+}
+.trend-record-grid .progress-block {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid #eef2f7;
+}
+.trend-record-grid .progress-head {
+  font-size: .88rem;
+}
+.followup-panel #followupList {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+.followup-panel #followupList .record-card {
+  margin: 0;
+  min-width: 0;
+}
+.followup-panel .quick-insight {
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: #f8fafc;
+}
+@media (max-width: 760px) {
+  .trend-record-grid,
+  .followup-panel #followupList {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+@media (max-width: 480px) {
+  .trend-heading-row {
+    align-items: flex-start;
+  }
+  .trend-record-grid .record-card {
+    padding: 14px;
+  }
+  .trend-record-grid .record-meta {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px 10px;
+  }
+  .trend-record-grid .meta-item {
+    font-size: .82rem;
+  }
+  .record-top {
+    gap: 8px;
+  }
+}
+
   </style>
 </head>
 <body>
@@ -555,13 +682,19 @@
       </div>
     </section>
 
-    <section class="grid-2">
-      <div class="card">
-        <div class="section-title">Attendance Trend List</div>
-        <div id="trendList">No trend data yet.</div>
+    <section class="trend-layout">
+      <div class="card trend-list-panel">
+        <div class="trend-heading-row">
+          <div>
+            <div class="section-title">Attendance Trend List</div>
+            <p class="muted trend-subtitle">Members are arranged alphabetically. Review attendance, absences and performance at a glance.</p>
+          </div>
+          <span class="trend-count" id="trendListCount">0 Members</span>
+        </div>
+        <div id="trendList" class="trend-record-grid">No trend data yet.</div>
       </div>
 
-      <div class="card">
+      <div class="card followup-panel">
         <div class="section-title">Follow-Up Alerts</div>
         <div id="followupList">No follow-up alert yet.</div>
         <div class="quick-insight" id="followupInsight"></div>
@@ -752,6 +885,9 @@
       }
 
       const {records,sessions,expected} = buildTrendRecords();
+      records.sort((a, b) => a.fullName.localeCompare(b.fullName, undefined, {sensitivity: 'base'}));
+      const countLabel = document.getElementById('trendListCount');
+      if (countLabel) countLabel.textContent = `${records.length} ${records.length === 1 ? 'Member' : 'Members'}`;
       document.getElementById('totalTrendRecords').textContent = records.length;
       document.getElementById('excellentPerformance').textContent = records.filter(r=>r.status==='Excellent Performance').length;
       document.getElementById('goodPerformance').textContent = records.filter(r=>r.status==='Good Performance').length;
@@ -779,7 +915,7 @@
       }
 
       trendList.innerHTML = records.map(item => `
-        <div class="record-card">
+        <div class="record-card trend-member-card">
           <div class="record-top">
             <div><h4>${escapeHtml(item.fullName)}</h4><span class="pill info">Member</span></div>
             <span class="pill ${getStatusClass(item.status)}">${escapeHtml(item.status)}</span>
