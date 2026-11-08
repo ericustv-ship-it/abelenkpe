@@ -1968,9 +1968,50 @@ img, video, iframe, canvas {
                   <option>Resolution</option><option>Report</option><option>Correspondence</option><option>Other</option>
                 </select>
               </div>
+              <div id="minutesWorkspace" class="hidden" style="padding:16px;background:#f8fafc;border:1px solid #cbd5e1;border-radius:14px;display:grid;gap:12px;">
+                <h3>Meeting Minutes Recorder</h3>
+                <p class="muted">Complete the meeting information and click Generate Official Minutes. You may edit the details and generate again.</p>
+                <div class="grid-2">
+                  <div class="field"><label for="minutesMeetingType">Meeting Type</label><input id="minutesMeetingType" placeholder="e.g. Church Board Meeting"></div>
+                  <div class="field"><label for="minutesVenue">Venue</label><input id="minutesVenue" placeholder="e.g. Church Conference Room"></div>
+                  <div class="field"><label for="minutesStartTime">Starting Time</label><input type="time" id="minutesStartTime"></div>
+                  <div class="field"><label for="minutesEndTime">Closing Time</label><input type="time" id="minutesEndTime"></div>
+                  <div class="field"><label for="minutesChairperson">Chairperson</label><input id="minutesChairperson" placeholder="Full name"></div>
+                  <div class="field"><label for="minutesSecretary">Secretary</label><input id="minutesSecretary" placeholder="Full name"></div>
+                </div>
+                <div class="field"><label for="minutesPresent">Members Present (one name per line)</label><textarea id="minutesPresent"></textarea></div>
+                <div class="field"><label for="minutesAbsent">Apologies / Absentees (one name per line)</label><textarea id="minutesAbsent"></textarea></div>
+                <div class="field"><label for="minutesOpening">Opening Prayer / Devotion</label><textarea id="minutesOpening"></textarea></div>
+                <div class="field"><label for="minutesPrevious">Previous Minutes and Matters Arising</label><textarea id="minutesPrevious"></textarea></div>
+                <div class="field"><label for="minutesAgenda">Agenda Items (one item per line)</label><textarea id="minutesAgenda"></textarea></div>
+                <div class="field"><label for="minutesDiscussion">Discussions / Proceedings</label><textarea id="minutesDiscussion" style="min-height:150px;"></textarea></div>
+                <div class="field"><label for="minutesResolutions">Resolutions / Decisions (one per line)</label><textarea id="minutesResolutions"></textarea></div>
+                <div class="field"><label for="minutesActions">Action Points / Responsible Persons / Deadlines</label><textarea id="minutesActions"></textarea></div>
+                <div class="field"><label for="minutesNextMeeting">Next Meeting</label><input id="minutesNextMeeting" placeholder="Date, time and venue (if agreed)"></div>
+                <div class="field"><label for="minutesClosing">Closing Remarks / Prayer</label><textarea id="minutesClosing"></textarea></div>
+                <div class="btn-row">
+                  <button type="button" class="btn btn-primary" id="generateMinutesBtn">Generate Official Minutes</button>
+                  <button type="button" class="btn btn-light" id="saveMinutesDraftBtn">Save Draft on This Device</button>
+                  <button type="button" class="btn btn-light" id="restoreMinutesDraftBtn">Restore Draft</button>
+                </div>
+                <p class="muted" id="minutesMessage" aria-live="polite"></p>
+                <div id="minutesPreviewWrap" class="hidden">
+                  <h3>Official Minutes Preview</h3>
+                  <div id="minutesPreview" style="background:white;border:1px solid #ddd;padding:20px;max-height:500px;overflow:auto;"></div>
+                  <div class="btn-row" style="margin-top:12px;">
+                    <button type="button" class="btn btn-success" id="downloadMinutesBtn">Download Minutes (HTML)</button>
+                    <button type="button" class="btn btn-light" id="printMinutesBtn">Print / Save as PDF</button>
+                  </div>
+                  <p class="muted">To store these minutes in church records, click Upload Record below.</p>
+                </div>
+              </div>
+              <div id="categoryWorkspace" class="hidden" style="padding:12px;background:#f8fafc;border-radius:12px;">
+                <div class="field"><label for="categoryRecordBody">Record Content / Notes</label><textarea id="categoryRecordBody" placeholder="Write the details of this record here, then generate a document if no file is attached."></textarea></div>
+                <button type="button" class="btn btn-light" id="generateCategoryBtn">Generate Document from Notes</button>
+              </div>
               <div class="field"><label for="recordDate">Record Date</label><input type="date" id="recordDate" /></div>
               <div class="field"><label for="recordDescription">Description / Notes</label><textarea id="recordDescription" maxlength="1000" placeholder="Brief description (optional)"></textarea></div>
-              <div class="field"><label for="recordFile">Select Document</label><input type="file" id="recordFile" accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.jpg,.jpeg,.png" required /></div>
+              <div class="field"><label for="recordFile">Select Document</label><input type="file" id="recordFile" accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.jpg,.jpeg,.png,.html,.txt" /></div>
               <button type="submit" class="btn btn-primary" id="uploadRecordBtn">Upload Record</button>
               <p id="recordUploadMessage" class="muted" aria-live="polite"></p>
             </form>
@@ -2868,7 +2909,7 @@ img, video, iframe, canvas {
     }
 
     async function saveProfilePhotoForMember(memberNumber, phone, file, memberId = null) {
-      if (!file) return;
+      if (!file) { message.textContent = 'Attach a document or generate one first.'; return; }
       const publicUrl = await uploadMemberProfilePhoto(file, memberNumber);
       if (memberId) {
         const { error } = await churchSupabase
@@ -3959,18 +4000,81 @@ const whatsappLink = whatsappNumber
       } catch (err) { alert('Could not delete record: ' + err.message); }
     };
 
+    // Church Records: minutes editor and document generation
+    let generatedRecordFile = null;
+    let generatedRecordHtml = '';
+    const minutesFields = ['minutesMeetingType','minutesVenue','minutesStartTime','minutesEndTime','minutesChairperson','minutesSecretary','minutesPresent','minutesAbsent','minutesOpening','minutesPrevious','minutesAgenda','minutesDiscussion','minutesResolutions','minutesActions','minutesNextMeeting','minutesClosing'];
+    const recordElement = id => document.getElementById(id);
+    const minutesValue = id => recordElement(id).value.trim();
+    const paragraphs = value => escapeHtml(value || 'Not recorded').replace(/\n/g, '<br>');
+    const lineItems = value => value.trim() ? '<ol>' + value.split(/\n/).filter(x=>x.trim()).map(x=>'<li>'+escapeHtml(x.trim())+'</li>').join('') + '</ol>' : '<p>Not recorded</p>';
+    function updateRecordWorkspace() {
+      const category = recordElement('recordCategory').value;
+      recordElement('minutesWorkspace').classList.toggle('hidden', category !== 'Minutes');
+      recordElement('categoryWorkspace').classList.toggle('hidden', !category || category === 'Minutes');
+      generatedRecordFile = null;
+      generatedRecordHtml = '';
+      recordElement('minutesPreviewWrap').classList.add('hidden');
+    }
+    recordElement('recordCategory').addEventListener('change', updateRecordWorkspace);
+    function buildOfficialDocument(title, content) {
+      const safeTitle = escapeHtml(title);
+      return `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><title>${safeTitle}</title><style>
+      body{font-family:Georgia,'Times New Roman',serif;color:#111;max-width:850px;margin:36px auto;padding:24px;line-height:1.65}header{text-align:center;border-bottom:3px double #222;padding-bottom:16px;margin-bottom:22px}h1{font-size:22px}h2{font-size:17px;border-bottom:1px solid #ddd;padding-bottom:5px;margin-top:24px}li{margin:5px 0}.meta{display:grid;grid-template-columns:1fr 1fr;gap:8px}.signatures{display:flex;justify-content:space-between;gap:25px;margin-top:65px}.signatures div{width:45%;border-top:1px solid #333;padding-top:8px}@media print{body{margin:0;max-width:none;padding:8mm}@page{size:A4;margin:16mm}}</style></head><body><header><strong>SEVENTH-DAY ADVENTIST CHURCH</strong><div>ABELENKPE</div><h1>${safeTitle}</h1></header>${content}<\/body><\/html>`;
+    }
+    function makeGeneratedFile(html, title) {
+      generatedRecordHtml = html;
+      const safe = (title || 'Church_Record').replace(/[^a-z0-9_-]+/gi,'_').slice(0,90);
+      generatedRecordFile = new File([html], `${safe}.html`, {type:'text/html'});
+      recordElement('minutesPreview').innerHTML = html.match(/<body[^>]*>([\s\S]*?)<\/body>/i)?.[1] || '';
+      recordElement('minutesPreviewWrap').classList.remove('hidden');
+      recordElement('minutesMessage').textContent = 'Document generated. Review the preview, then download, print or upload.';
+    }
+    recordElement('generateMinutesBtn').addEventListener('click', () => {
+      const title = recordElement('recordTitle').value.trim() || 'Official Meeting Minutes';
+      const date = recordElement('recordDate').value;
+      if (!date || !minutesValue('minutesMeetingType') || !minutesValue('minutesChairperson') || !minutesValue('minutesSecretary')) {
+        recordElement('minutesMessage').textContent = 'Enter the record date, meeting type, chairperson and secretary first.'; return;
+      }
+      const section = (heading, body) => `<h2>${heading}</h2>${body}`;
+      const content = `<div class="meta"><div><b>Meeting:</b> ${paragraphs(minutesValue('minutesMeetingType'))}</div><div><b>Date:</b> ${escapeHtml(date)}</div><div><b>Venue:</b> ${paragraphs(minutesValue('minutesVenue'))}</div><div><b>Time:</b> ${escapeHtml(minutesValue('minutesStartTime'))} – ${escapeHtml(minutesValue('minutesEndTime'))}</div><div><b>Chairperson:</b> ${paragraphs(minutesValue('minutesChairperson'))}</div><div><b>Secretary:</b> ${paragraphs(minutesValue('minutesSecretary'))}</div></div>`+
+      section('1. Members Present',lineItems(minutesValue('minutesPresent')))+section('2. Apologies / Absentees',lineItems(minutesValue('minutesAbsent')))+section('3. Opening Prayer / Devotion','<p>'+paragraphs(minutesValue('minutesOpening'))+'</p>')+section('4. Previous Minutes and Matters Arising','<p>'+paragraphs(minutesValue('minutesPrevious'))+'</p>')+section('5. Agenda',lineItems(minutesValue('minutesAgenda')))+section('6. Proceedings and Discussions','<p>'+paragraphs(minutesValue('minutesDiscussion'))+'</p>')+section('7. Resolutions and Decisions',lineItems(minutesValue('minutesResolutions')))+section('8. Action Points','<p>'+paragraphs(minutesValue('minutesActions'))+'</p>')+section('9. Next Meeting','<p>'+paragraphs(minutesValue('minutesNextMeeting'))+'</p>')+section('10. Closing Remarks / Prayer','<p>'+paragraphs(minutesValue('minutesClosing'))+'</p>')+`<div class="signatures"><div>Prepared by: ${paragraphs(minutesValue('minutesSecretary'))}<br>Secretary / Date</div><div>Approved by: ${paragraphs(minutesValue('minutesChairperson'))}<br>Chairperson / Date</div></div>`;
+      makeGeneratedFile(buildOfficialDocument(title,content),title);
+    });
+    recordElement('generateCategoryBtn').addEventListener('click',()=>{
+      const title=recordElement('recordTitle').value.trim();
+      const body=recordElement('categoryRecordBody').value.trim();
+      if(!title || !body){recordElement('recordUploadMessage').textContent='Enter a title and record content first.';return;}
+      makeGeneratedFile(buildOfficialDocument(title,`<p><b>Category:</b> ${escapeHtml(recordElement('recordCategory').value)}</p><p><b>Date:</b> ${escapeHtml(recordElement('recordDate').value)}</p><h2>Record Details</h2><p>${paragraphs(body)}</p>`),title);
+    });
+    recordElement('saveMinutesDraftBtn').addEventListener('click',()=>{
+      const draft=Object.fromEntries([...minutesFields,'recordTitle','recordDate','recordDescription'].map(id=>[id,recordElement(id).value]));
+      try {localStorage.setItem('abelenkpe_minutes_draft',JSON.stringify(draft));recordElement('minutesMessage').textContent='Draft saved on this device.';}catch(e){recordElement('minutesMessage').textContent='Could not save draft: '+e.message;}
+    });
+    recordElement('restoreMinutesDraftBtn').addEventListener('click',()=>{
+      try {const draft=JSON.parse(localStorage.getItem('abelenkpe_minutes_draft')||'null');if(!draft)throw Error('No saved draft on this device.');Object.entries(draft).forEach(([id,value])=>{if(recordElement(id))recordElement(id).value=value;});recordElement('minutesMessage').textContent='Draft restored.';}catch(e){recordElement('minutesMessage').textContent=e.message;}
+    });
+    recordElement('downloadMinutesBtn').addEventListener('click',()=>{
+      if(!generatedRecordFile)return;
+      const url=URL.createObjectURL(generatedRecordFile);const a=document.createElement('a');a.href=url;a.download=generatedRecordFile.name;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);
+    });
+    recordElement('printMinutesBtn').addEventListener('click',()=>{
+      if(!generatedRecordHtml)return;
+      const w=window.open('','_blank');if(!w){alert('Allow pop-ups to print minutes.');return;}
+      w.document.open();w.document.write(generatedRecordHtml);w.document.close();w.focus();setTimeout(()=>w.print(),300);
+    });
     document.getElementById('recordForm').addEventListener('submit', async event => {
       event.preventDefault();
       if (!canManageRecords()) return alert('Only the Main Administrator or Secretary can upload records.');
-      const file = document.getElementById('recordFile').files[0];
+      const file = document.getElementById('recordFile').files[0] || generatedRecordFile;
       const message = document.getElementById('recordUploadMessage');
       const button = document.getElementById('uploadRecordBtn');
       if (!file) return;
       if (file.size > MAX_CHURCH_RECORD_SIZE) { message.textContent = 'File is too large. Maximum size is 15 MB.'; return; }
-      if (!/\.(pdf|doc|docx|xls|xlsx|ppt|pptx|jpe?g|png)$/i.test(file.name)) { message.textContent = 'Unsupported file type.'; return; }
+      if (!/\.(pdf|doc|docx|xls|xlsx|ppt|pptx|jpe?g|png|html|txt)$/i.test(file.name)) { message.textContent = 'Unsupported file type.'; return; }
       button.disabled = true; button.textContent = 'Uploading...'; message.textContent = '';
       const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
-      const path = `${Date.now()}-${crypto.randomUUID()}-${safeName}`;
+      const path = `${Date.now()}-${(globalThis.crypto?.randomUUID?.() || Math.random().toString(36).slice(2))}-${safeName}`;
       try {
         const { error: uploadError } = await churchSupabase.storage.from(RECORD_BUCKET).upload(path, file, {
           cacheControl: '3600', upsert: false, contentType: file.type || 'application/octet-stream'
@@ -3986,7 +4090,7 @@ const whatsappLink = whatsappNumber
         };
         const { error: insertError } = await churchSupabase.from('church_records').insert(payload);
         if (insertError) { await churchSupabase.storage.from(RECORD_BUCKET).remove([path]); throw insertError; }
-        event.currentTarget.reset(); message.textContent = 'Church record uploaded and saved successfully.';
+        event.currentTarget.reset(); generatedRecordFile = null; generatedRecordHtml = ''; updateRecordWorkspace(); message.textContent = 'Church record uploaded and saved successfully.';
         await loadChurchRecords();
       } catch (err) { message.textContent = 'Upload failed: ' + err.message; }
       finally { button.disabled = false; button.textContent = 'Upload Record'; }
