@@ -1275,6 +1275,50 @@ img, video, iframe, canvas {
 }
 
 
+
+/* Optional member profile photos */
+.profile-photo-picker {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  padding: 12px;
+  border: 1px dashed var(--border);
+  border-radius: 14px;
+  background: #f8fafc;
+}
+.profile-photo-preview,
+.member-avatar {
+  width: 64px;
+  height: 64px;
+  flex: 0 0 64px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid #dbeafe;
+  background: #eaf0fb;
+}
+.profile-photo-preview:empty { display: none; }
+.profile-photo-preview:not([src]),
+.profile-photo-preview[src=""] { display: none; }
+.profile-photo-input { min-width: 0; flex: 1; }
+.profile-photo-input input { width: 100%; }
+.member-card-heading {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+  min-width: 0;
+}
+.member-card-heading h4 { margin: 0; overflow-wrap: anywhere; }
+.member-avatar-placeholder {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #1d4ed8;
+  font-weight: 800;
+  font-size: 1.1rem;
+}
+
 </style>
 </head>
 <body>
@@ -1477,6 +1521,16 @@ img, video, iframe, canvas {
                 <label>Note</label>
                 <textarea id="note" placeholder="Optional note"></textarea>
               </div>
+              <div class="field profile-photo-field">
+                <label for="profilePhoto">Profile Photo <span class="muted">(Optional)</span></label>
+                <div class="profile-photo-picker">
+                  <img id="profilePhotoPreview" class="profile-photo-preview" alt="Profile photo preview" />
+                  <div class="profile-photo-input">
+                    <input type="file" id="profilePhoto" accept="image/png,image/jpeg,image/webp" />
+                    <small class="muted">JPG, PNG or WebP. Maximum 3 MB.</small>
+                  </div>
+                </div>
+              </div>
               <div class="btn-row">
                 <button type="submit" class="btn btn-primary" id="saveMemberBtn">Save Member</button>
                 <button type="button" class="btn btn-light" id="cancelMemberEditBtn" style="display:none;">Cancel Edit</button>
@@ -1576,6 +1630,16 @@ img, video, iframe, canvas {
               <div class="field">
                 <label>Note</label>
                 <textarea id="selfNote" placeholder="Optional note"></textarea>
+              </div>
+              <div class="field profile-photo-field">
+                <label for="selfProfilePhoto">Profile Photo <span class="muted">(Optional)</span></label>
+                <div class="profile-photo-picker">
+                  <img id="selfProfilePhotoPreview" class="profile-photo-preview" alt="Profile photo preview" />
+                  <div class="profile-photo-input">
+                    <input type="file" id="selfProfilePhoto" accept="image/png,image/jpeg,image/webp" />
+                    <small class="muted">JPG, PNG or WebP. Maximum 3 MB.</small>
+                  </div>
+                </div>
               </div>
               <div class="btn-row">
                 <button type="submit" class="btn btn-primary">Submit Registration</button>
@@ -1962,7 +2026,8 @@ img, video, iframe, canvas {
         memberClass: row.member_class || '',
         dob: row.dob || '',
         phone: row.phone || '',
-        note: row.note || ''
+        note: row.note || '',
+        profileImageUrl: row.profile_image_url || row.profileImageUrl || ''
       };
     }
 
@@ -2032,7 +2097,8 @@ img, video, iframe, canvas {
           memberClass: row.member_class || '',
           dob: row.dob || '',
           phone: row.phone || '',
-          note: ''
+          note: '',
+          profileImageUrl: row.profile_image_url || ''
         }));
         attendance = [];
         const { data: status, error } = await churchSupabase.rpc('get_public_church_status');
@@ -2490,12 +2556,105 @@ img, video, iframe, canvas {
     function resetMemberEditState() {
       editingMemberId = null;
       memberForm.reset();
+      document.getElementById('profilePhotoPreview')?.removeAttribute('src');
       updateMemberEditUI();
     }
 
     cancelMemberEditBtn.addEventListener('click', () => {
       resetMemberEditState();
     });
+
+    // Profile photos are optional. Photos are stored in Supabase Storage,
+    // while the public URL is saved in members.profile_image_url.
+    const PROFILE_PHOTO_BUCKET = 'member-profile-photos';
+    const MAX_PROFILE_PHOTO_BYTES = 3 * 1024 * 1024;
+
+    function bindProfilePhotoPreview(inputId, previewId) {
+      const input = document.getElementById(inputId);
+      const preview = document.getElementById(previewId);
+      if (!input || !preview) return;
+
+      input.addEventListener('change', () => {
+        const file = input.files?.[0];
+        if (!file) {
+          preview.removeAttribute('src');
+          preview.classList.remove('has-photo');
+          return;
+        }
+        if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+          alert('Please choose a JPG, PNG or WebP image.');
+          input.value = '';
+          preview.removeAttribute('src');
+          return;
+        }
+        if (file.size > MAX_PROFILE_PHOTO_BYTES) {
+          alert('Profile photo must not exceed 3 MB.');
+          input.value = '';
+          preview.removeAttribute('src');
+          return;
+        }
+        const reader = new FileReader();
+        reader.onload = event => {
+          preview.src = event.target.result;
+          preview.classList.add('has-photo');
+        };
+        reader.readAsDataURL(file);
+      });
+    }
+
+    bindProfilePhotoPreview('profilePhoto', 'profilePhotoPreview');
+    bindProfilePhotoPreview('selfProfilePhoto', 'selfProfilePhotoPreview');
+
+    async function uploadMemberProfilePhoto(file, memberNumber) {
+      if (!file) return null;
+      if (!memberNumber) throw new Error('The member serial number was not returned. The photo was not uploaded.');
+      if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+        throw new Error('Choose a JPG, PNG or WebP profile photo.');
+      }
+      if (file.size > MAX_PROFILE_PHOTO_BYTES) {
+        throw new Error('Profile photo must not exceed 3 MB.');
+      }
+
+      const extension = file.type === 'image/png' ? 'png' :
+        file.type === 'image/webp' ? 'webp' : 'jpg';
+      const safeSerial = String(memberNumber).replace(/[^a-zA-Z0-9_-]/g, '');
+      const filePath = `${safeSerial}/${Date.now()}.${extension}`;
+
+      const { error: uploadError } = await churchSupabase.storage
+        .from(PROFILE_PHOTO_BUCKET)
+        .upload(filePath, file, {
+          cacheControl: '3600',
+          upsert: true,
+          contentType: file.type
+        });
+      if (uploadError) throw uploadError;
+
+      const { data } = churchSupabase.storage
+        .from(PROFILE_PHOTO_BUCKET)
+        .getPublicUrl(filePath);
+      return data.publicUrl;
+    }
+
+    async function saveProfilePhotoForMember(memberNumber, phone, file, memberId = null) {
+      if (!file) return;
+      const publicUrl = await uploadMemberProfilePhoto(file, memberNumber);
+      if (memberId) {
+        const { error } = await churchSupabase
+          .from('members')
+          .update({ profile_image_url: publicUrl })
+          .eq('id', memberId);
+        if (error) throw error;
+      } else {
+        // Public self-registration uses a SECURITY DEFINER RPC rather than
+        // granting anonymous users direct UPDATE access to the members table.
+        const { error } = await churchSupabase.rpc('set_member_profile_photo', {
+          p_member_number: memberNumber,
+          p_phone: phone,
+          p_profile_image_url: publicUrl
+        });
+        if (error) throw error;
+      }
+    }
 
     memberForm.addEventListener('submit', async (e) => {
       e.preventDefault();
@@ -2512,6 +2671,7 @@ img, video, iframe, canvas {
         return alert('Please fill all required fields.');
       }
       const wasEditing = !!editingMemberId;
+      const selectedPhoto = document.getElementById('profilePhoto').files?.[0] || null;
       try {
         let result;
         if (editingMemberId) {
@@ -2526,6 +2686,14 @@ img, video, iframe, canvas {
           result = { data };
         }
         if (result.error) throw result.error;
+
+        const savedMember = wasEditing ? members.find(member => member.id === editingMemberId) : null;
+        const savedSerial = result.data?.memberNumber || result.data?.member_number ||
+          savedMember?.memberNumber || document.getElementById('memberNumber').value;
+        if (selectedPhoto) {
+          await saveProfilePhotoForMember(savedSerial, payload.phone, selectedPhoto, wasEditing ? editingMemberId : null);
+        }
+
         resetMemberEditState();
         await loadChurchData();
         alert(wasEditing ? 'Member updated successfully.' : `Member saved successfully. Serial: ${result.data?.memberNumber || result.data?.member_number || 'assigned by database'}`);
@@ -2547,10 +2715,16 @@ img, video, iframe, canvas {
       if (!payload.p_full_name || !payload.p_gender || !payload.p_member_class || !payload.p_phone) {
         return alert('Please fill all required fields.');
       }
+      const selectedPhoto = document.getElementById('selfProfilePhoto').files?.[0] || null;
       try {
         const { data, error } = await churchSupabase.rpc('register_church_member', payload);
         if (error) throw error;
+        const registeredSerial = data?.memberNumber || data?.member_number || '';
+        if (selectedPhoto) {
+          await saveProfilePhotoForMember(registeredSerial, payload.p_phone, selectedPhoto);
+        }
         memberSelfRegisterForm.reset();
+        document.getElementById('selfProfilePhotoPreview').removeAttribute('src');
         document.getElementById('selfMemberNumber').value = data?.memberNumber || '';
         alert(`Registration successful. Your church serial number is ${data?.memberNumber || 'available from the church administrator'}.`);
         await refreshPublicStatus();
@@ -2580,8 +2754,12 @@ img, video, iframe, canvas {
 
       wrap.innerHTML = members.map(member => `
         <div class="member-card">
-          <h4>${member.fullName}</h4>
-          <p class="muted">No: ${member.memberNumber}</p>
+          <div class="member-card-heading">
+            ${member.profileImageUrl
+              ? `<img class="member-avatar" src="${escapeHtml(member.profileImageUrl)}" alt="${escapeHtml(member.fullName)} profile photo">`
+              : `<div class="member-avatar member-avatar-placeholder" aria-label="No profile photo">${escapeHtml(String(member.fullName || '?').trim().charAt(0).toUpperCase())}</div>`}
+            <div><h4>${escapeHtml(member.fullName)}</h4><p class="muted">No: ${escapeHtml(member.memberNumber)}</p></div>
+          </div>
           <p class="muted">Gender: ${member.gender}</p>
           <p class="muted">Class: ${member.memberClass}</p>
           <p class="muted">Phone: ${member.phone || 'N/A'}</p>
@@ -2633,6 +2811,11 @@ img, video, iframe, canvas {
       document.getElementById('dob').value = member.dob || '';
       document.getElementById('phone').value = member.phone || '';
       document.getElementById('note').value = member.note || '';
+      const photoPreview = document.getElementById('profilePhotoPreview');
+      if (photoPreview) {
+        if (member.profileImageUrl) photoPreview.src = member.profileImageUrl;
+        else photoPreview.removeAttribute('src');
+      }
 
       updateMemberEditUI();
       goToSection('member-registration');
