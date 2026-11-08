@@ -2001,6 +2001,7 @@ img, video, iframe, canvas {
       <p id="profileCameraMessage" class="muted" style="margin:10px 0;" aria-live="polite">Allow camera access when your browser asks.</p>
       <div class="btn-row">
         <button type="button" class="btn btn-primary" id="takeCameraSnapshotBtn">Capture Photo</button>
+        <button type="button" class="btn btn-light" id="switchProfileCameraBtn">Switch to Back Camera</button>
         <button type="button" class="btn btn-light" id="closeProfileCameraBtn">Cancel</button>
       </div>
     </div>
@@ -4831,6 +4832,45 @@ document.getElementById('downloadMembersExcelBtn').addEventListener('click', dow
     const profileCameraMessage = document.getElementById('profileCameraMessage');
     let profileCameraStream = null;
     let activeProfilePhotoInputId = null;
+    let profileCameraFacingMode = 'user';
+
+    async function startProfileCamera(facingMode) {
+      if (!navigator.mediaDevices?.getUserMedia) {
+        throw new Error('Camera access is unavailable. Open the website using HTTPS (or localhost) and use a supported browser.');
+      }
+
+      // Release the current camera before requesting the other one.
+      if (profileCameraStream) {
+        profileCameraStream.getTracks().forEach(track => track.stop());
+        profileCameraStream = null;
+      }
+      if (profileCameraVideo) profileCameraVideo.srcObject = null;
+
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: { ideal: facingMode },
+          width: { ideal: 1280 },
+          height: { ideal: 1280 }
+        },
+        audio: false
+      });
+
+      profileCameraStream = stream;
+      profileCameraFacingMode = facingMode;
+      profileCameraVideo.srcObject = stream;
+      await profileCameraVideo.play();
+
+      const switchButton = document.getElementById('switchProfileCameraBtn');
+      if (switchButton) {
+        switchButton.textContent = facingMode === 'user'
+          ? 'Switch to Back Camera'
+          : 'Switch to Front Camera';
+      }
+
+      profileCameraMessage.textContent = facingMode === 'user'
+        ? 'Front camera is on. Position your face in the frame, then select Capture Photo.'
+        : 'Back camera is on. Frame the photo, then select Capture Photo.';
+    }
 
     function stopProfileCamera() {
       if (profileCameraStream) {
@@ -4844,6 +4884,7 @@ document.getElementById('downloadMembersExcelBtn').addEventListener('click', dow
       stopProfileCamera();
       profileCameraModal.classList.add('hidden');
       activeProfilePhotoInputId = null;
+      profileCameraFacingMode = 'user';
     }
 
     async function openProfileCamera(inputId) {
@@ -4855,21 +4896,8 @@ document.getElementById('downloadMembersExcelBtn').addEventListener('click', dow
       profileCameraMessage.textContent = 'Starting camera...';
       profileCameraModal.classList.remove('hidden');
 
-      if (!navigator.mediaDevices?.getUserMedia) {
-        profileCameraMessage.textContent =
-          'Camera access is unavailable. Open the website using HTTPS (or localhost) and use a supported browser.';
-        return;
-      }
-
       try {
-        stopProfileCamera();
-        profileCameraStream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 1280 } },
-          audio: false
-        });
-        profileCameraVideo.srcObject = profileCameraStream;
-        await profileCameraVideo.play();
-        profileCameraMessage.textContent = 'Position your face in the frame, then select Capture Photo.';
+        await startProfileCamera('user');
       } catch (err) {
         console.error('Profile camera error:', err);
         const reason = err.name === 'NotAllowedError'
@@ -4879,11 +4907,41 @@ document.getElementById('downloadMembersExcelBtn').addEventListener('click', dow
             : err.name === 'NotReadableError'
               ? 'The camera is already being used by another app. Close other camera apps and try again.'
               : err.name === 'OverconstrainedError'
-                ? 'The requested camera mode is unavailable. Try another camera.'
+                ? 'The requested camera mode is unavailable.'
                 : (err.message || 'Check your camera and browser permissions.');
         profileCameraMessage.textContent = 'Could not open the camera: ' + reason;
       }
     }
+
+    async function switchProfileCamera() {
+      if (!profileCameraStream) {
+        profileCameraMessage.textContent = 'Start the camera before switching.';
+        return;
+      }
+
+      const previousMode = profileCameraFacingMode;
+      const nextMode = previousMode === 'user' ? 'environment' : 'user';
+      profileCameraMessage.textContent = 'Switching camera...';
+
+      try {
+        await startProfileCamera(nextMode);
+      } catch (err) {
+        console.error('Could not switch profile camera:', err);
+        const requestedCamera = nextMode === 'environment' ? 'back' : 'front';
+        profileCameraMessage.textContent =
+          `The ${requestedCamera} camera is not available on this device. Keeping the ${previousMode === 'user' ? 'front' : 'back'} camera.`;
+
+        // Try to restore the camera that was active before the switch.
+        try {
+          await startProfileCamera(previousMode);
+        } catch (restoreError) {
+          console.error('Could not restore previous profile camera:', restoreError);
+          profileCameraMessage.textContent += ' Please close and reopen the camera.';
+        }
+      }
+    }
+
+    document.getElementById('switchProfileCameraBtn')?.addEventListener('click', switchProfileCamera);
 
     document.getElementById('captureProfilePhotoBtn')?.addEventListener('click', () => {
       openProfileCamera('profilePhoto');
