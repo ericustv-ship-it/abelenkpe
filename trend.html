@@ -579,641 +579,357 @@
 
   <script>
     /*
-      TREND RULES
-      1. Trend reads cumulative saved/closed attendance history.
-      2. A session is valid only when attendance was actually saved/closed and has records.
-      3. Open/current attendance should not be counted until it is closed/saved.
-      4. Reset clears all known attendance history keys, so Valid Attendance Sessions returns to 0.
+      Attendance Trend Dashboard
+      Source of truth: Supabase attendance_sessions, members,
+      attendance_member_snapshots, and member_attendance.
+      Children are not included because the supplied main system currently
+      stores member attendance in Supabase while children remain local-only.
     */
-
-    const HISTORY_KEYS = {
-      members: [
-        'church_member_attendance_history',
-        'church_attendance_history',
-        'attendanceHistory',
-        'memberAttendanceHistory',
-        'members_attendance_history'
-      ],
-      kids: [
-        'church_kids_attendance_history',
-        'kidsAttendanceHistory',
-        'church_children_attendance_history',
-        'childrenAttendanceHistory',
-        'children_attendance_history'
-      ]
-    };
-
-    const RECORD_KEYS = {
-      members: ['church_members'],
-      kids: ['church_kids_records', 'church_children_records']
-    };
-
-    function safeJSON(key) {
-      try {
-        const value = JSON.parse(localStorage.getItem(key) || '[]');
-        return Array.isArray(value) ? value : [];
-      } catch (error) {
-        return [];
-      }
-    }
-
-    function readManyKeys(keys) {
-      return keys.flatMap(key => safeJSON(key));
-    }
-
-    function getMemberHistory() {
-      return readManyKeys(HISTORY_KEYS.members);
-    }
-
-    function getKidsHistory() {
-      return readManyKeys(HISTORY_KEYS.kids);
-    }
-
-    function getLiveMembers() {
-      return readManyKeys(RECORD_KEYS.members);
-    }
-
-    function getLiveKids() {
-      return readManyKeys(RECORD_KEYS.kids);
-    }
-
-    function clearTrendAttendanceHistory() {
-      const keysToClear = [
-        ...HISTORY_KEYS.members,
-        ...HISTORY_KEYS.kids,
-        'church_attendance_sessions',
-        'church_open_attendance',
-        'currentAttendanceSession',
-        'activeAttendanceSession',
-        'openedAttendanceSession'
-      ];
-
-      keysToClear.forEach(key => localStorage.setItem(key, '[]'));
-      localStorage.setItem('church_trend_last_reset_at', new Date().toISOString());
-    }
-
-    function resetTrendIfNoLiveRecords() {
-      const totalLiveRecords = getLiveMembers().length + getLiveKids().length;
-      if (totalLiveRecords === 0) {
-        clearTrendAttendanceHistory();
-        return true;
-      }
-      return false;
-    }
+    const SUPABASE_URL = 'https://jyaacjphbqhoafiprkhg.supabase.co';
+    const SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_4ZZI7mvJuhXjRRpTpD24Dw_4KRiUutD';
+    const churchSupabase = window.supabaseClient ||
+      (window.supabase && typeof window.supabase.createClient === 'function'
+        ? window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY)
+        : null);
 
     const trendRange = document.getElementById('trendRange');
     const trendType = document.getElementById('trendType');
     const trendSearch = document.getElementById('trendSearch');
+    let trendSessions = [];
+    let trendMembers = [];
+    let trendRowsBySession = new Map();
+    let trendLoading = false;
+    let trendLoadError = '';
 
     function normalizeText(value) {
-      return String(value || '').trim().toLowerCase();
+      return String(value ?? '').trim().toLowerCase();
     }
-
     function normalizeDigits(value) {
-      return String(value || '').replace(/\D/g, '');
+      return String(value ?? '').replace(/\D/g, '');
     }
-
-    function normalizeWhatsAppNumber(phone) {
-      if (!phone) return '';
-      let digits = String(phone).replace(/\D/g, '');
-
-      if (digits.length === 10 && digits.startsWith('0')) {
-        digits = '233' + digits.slice(1);
-      } else if (digits.length === 9) {
-        digits = '233' + digits;
-      }
-
-      if (digits.length === 12 && digits.startsWith('233')) return digits;
-      return '';
+    function getSafeDate(value) {
+      if (!value) return null;
+      const date = new Date(value);
+      return Number.isNaN(date.getTime()) ? null : date;
     }
-
-    function getSafeDate(dateStr) {
-      const d = new Date(dateStr);
-      return isNaN(d.getTime()) ? null : d;
+    function formatDate(value) {
+      const date = getSafeDate(value);
+      return date ? date.toLocaleDateString(undefined, {year:'numeric',month:'short',day:'numeric'}) : 'Never';
     }
-
-    function getSessionDate(session) {
-      return session.sessionDate || session.date || session.attendanceDate || session.createdAt || session.closedAt || '';
-    }
-
-    function toDateKey(dateStr) {
-      const d = getSafeDate(dateStr);
-      if (!d) return '';
-      const year = d.getFullYear();
-      const month = String(d.getMonth() + 1).padStart(2, '0');
-      const day = String(d.getDate()).padStart(2, '0');
-      return `${year}-${month}-${day}`;
-    }
-
-    function getDateDiffDays(dateStr) {
-      const d = getSafeDate(dateStr);
-      if (!d) return Infinity;
+    function getDateDiffDays(value) {
+      const date = getSafeDate(value);
+      if (!date) return Infinity;
       const today = new Date();
-      today.setHours(23, 59, 59, 999);
-      return Math.floor((today - d) / (1000 * 60 * 60 * 24));
+      today.setHours(23,59,59,999);
+      return Math.floor((today - date) / 86400000);
     }
-
-    function getSessionRecords(session) {
-      if (Array.isArray(session.records)) return session.records;
-      if (Array.isArray(session.attendance)) return session.attendance;
-      if (Array.isArray(session.members)) return session.members;
-      if (Array.isArray(session.children)) return session.children;
-      return [];
-    }
-
-    function sessionLooksOpen(session) {
-      const openFlags = [
-        session.isOpen,
-        session.open,
-        session.attendanceOpen,
-        session.isAttendanceOpen,
-        session.active,
-        session.isActive
-      ];
-
-      if (openFlags.some(value => value === true)) return true;
-
-      const status = normalizeText(session.status || session.sessionStatus || session.attendanceStatus || '');
-      return ['open', 'opened', 'active', 'running', 'in progress'].includes(status);
-    }
-
-    function sessionLooksClosedOrSaved(session) {
-      const closedFlags = [
-        session.isClosed,
-        session.closed,
-        session.isSaved,
-        session.saved,
-        session.completed,
-        session.finalized
-      ];
-
-      if (closedFlags.some(value => value === true)) return true;
-
-      const status = normalizeText(session.status || session.sessionStatus || session.attendanceStatus || '');
-      if (['closed', 'close', 'saved', 'completed', 'finalized', 'ended'].includes(status)) return true;
-
-      // Backward support for your older history format that only stores sessionDate + records.
-      return !!getSessionDate(session) && getSessionRecords(session).length > 0;
-    }
-
-    function isValidOpenedSession(session) {
-      if (!session) return false;
-      const sessionDate = getSessionDate(session);
-      if (!sessionDate || !getSafeDate(sessionDate)) return false;
-      if (sessionLooksOpen(session)) return false;
-
-      const records = getSessionRecords(session);
-      if (!records.length) return false;
-
-      return sessionLooksClosedOrSaved(session);
-    }
-
-    function removeDuplicateSessionsByDate(sessions) {
-      const map = new Map();
-
-      sessions.forEach(session => {
-        const sessionDate = getSessionDate(session);
-        const key = toDateKey(sessionDate);
-        if (!key) return;
-
-        const existing = map.get(key);
-        const currentRecordCount = getSessionRecords(session).length;
-        const existingRecordCount = existing ? getSessionRecords(existing).length : 0;
-
-        if (!existing || currentRecordCount > existingRecordCount) {
-          map.set(key, { ...session, sessionDate, records: getSessionRecords(session) });
-        }
-      });
-
-      return Array.from(map.values()).sort((a, b) => new Date(b.sessionDate) - new Date(a.sessionDate));
-    }
-
-    function isAllTimeRange(rangeValue) {
-      return String(rangeValue || '').toLowerCase() === 'all';
-    }
-
-    function getFilteredMemberSessions(rangeValue) {
-      let sessions = getMemberHistory().filter(isValidOpenedSession);
-      if (!isAllTimeRange(rangeValue)) {
-        const days = Number(rangeValue);
-        sessions = sessions.filter(session => getDateDiffDays(getSessionDate(session)) <= days);
-      }
-      return removeDuplicateSessionsByDate(sessions);
-    }
-
-    function getFilteredKidsSessions(rangeValue) {
-      let sessions = getKidsHistory().filter(isValidOpenedSession);
-      if (!isAllTimeRange(rangeValue)) {
-        const days = Number(rangeValue);
-        sessions = sessions.filter(session => getDateDiffDays(getSessionDate(session)) <= days);
-      }
-      return removeDuplicateSessionsByDate(sessions);
-    }
-
-    function getCombinedSessionDates(rangeValue, selectedType) {
-      const memberSessions = getFilteredMemberSessions(rangeValue);
-      const kidSessions = getFilteredKidsSessions(rangeValue);
-      let sessions = [];
-
-      if (selectedType === 'member') sessions = memberSessions;
-      else if (selectedType === 'kid') sessions = kidSessions;
-      else sessions = [...memberSessions, ...kidSessions];
-
-      const keys = [...new Set(sessions.map(session => toDateKey(session.sessionDate)).filter(Boolean))];
-      return keys.sort((a, b) => new Date(b) - new Date(a));
-    }
-
-    function getExpectedWeeklySessions(rangeValue, selectedType) {
-      if (isAllTimeRange(rangeValue)) return getCombinedSessionDates(rangeValue, selectedType).length;
-      const days = Number(rangeValue);
-      if (days <= 30) return 4;
-      if (days <= 60) return 8;
-      if (days <= 90) return 13;
-      return Math.max(1, Math.round(days / 7));
-    }
-
-    function getSessionSummary(rangeValue, selectedType, hasLiveRecords = true) {
-      const expectedSessions = getExpectedWeeklySessions(rangeValue, selectedType);
-
-      if (!hasLiveRecords) {
-        return { sessionDates: [], sessionCount: 0, expectedSessions, missedWeeks: 0 };
-      }
-
-      const sessionDates = getCombinedSessionDates(rangeValue, selectedType);
-      const missedWeeks = isAllTimeRange(rangeValue) ? 0 : Math.max(0, expectedSessions - sessionDates.length);
-      return { sessionDates, sessionCount: sessionDates.length, expectedSessions, missedWeeks };
-    }
-
-    function findMemberRecordInSession(member, session) {
-      return (session.records || []).find(record =>
-        String(record.memberId || record.id || '') === String(member.id || '') ||
-        normalizeText(record.memberNumber || record.serialNumber || '') === normalizeText(member.memberNumber || member.serialNumber || '') ||
-        normalizeText(record.fullName || record.name || '') === normalizeText(member.fullName || member.name || '')
-      ) || null;
-    }
-
-    function findKidRecordInSession(kid, session) {
-      const kidPhone = normalizeWhatsAppNumber(kid.phone || kid.guardianPhone || '');
-      return (session.records || []).find(record =>
-        String(record.kidId || record.childId || record.id || '') === String(kid.id || '') ||
-        (kidPhone && normalizeWhatsAppNumber(record.phone || record.guardianPhone || '') === kidPhone) ||
-        (
-          normalizeText(record.fullName || record.name || '') === normalizeText(kid.name || kid.fullName || '') &&
-          normalizeText(record.guardian || '') === normalizeText(kid.guardian || '')
-        ) ||
-        normalizeText(record.fullName || record.name || '') === normalizeText(kid.name || kid.fullName || '')
-      ) || null;
-    }
-
-    function recordIsPresent(record) {
-      if (!record) return false;
-      if (record.present === true) return true;
-      if (record.isPresent === true) return true;
-      const status = normalizeText(record.status || record.attendanceStatus || '');
-      return ['present', 'p', 'yes', 'attended'].includes(status);
-    }
-
-    function buildTrendRecord(person, sessions, type, expectedSessionsForRate) {
-      let presentCount = 0;
-      let absentCount = 0;
-      let lastSeen = null;
-      let chronologicalSessions = [];
-
-      sessions.forEach(session => {
-        const found = type === 'Member' ? findMemberRecordInSession(person, session) : findKidRecordInSession(person, session);
-        const present = recordIsPresent(found);
-
-        chronologicalSessions.push({ date: session.sessionDate, present });
-
-        if (present) {
-          presentCount += 1;
-          if (!lastSeen || new Date(session.sessionDate) > new Date(lastSeen)) {
-            lastSeen = session.sessionDate;
-          }
-        } else {
-          absentCount += 1;
-        }
-      });
-
-      const totalSessions = sessions.length;
-      const targetSessions = Math.max(totalSessions, Number(expectedSessionsForRate) || totalSessions || 0);
-      const attendanceRate = targetSessions ? Math.round((presentCount / targetSessions) * 100) : 0;
-      const sortedSessions = [...chronologicalSessions].sort((a, b) => new Date(b.date) - new Date(a.date));
-
-      let consecutiveAbsences = 0;
-      for (const session of sortedSessions) {
-        if (session.present) break;
-        consecutiveAbsences += 1;
-      }
-
-      const status = getPerformanceStatus(attendanceRate, consecutiveAbsences, totalSessions);
-
-      return {
-        id: `${type.toLowerCase()}-${person.id || person.memberNumber || person.serialNumber || person.name || person.fullName}`,
-        type,
-        fullName: type === 'Member' ? (person.fullName || person.name || '') : (person.name || person.fullName || ''),
-        memberNumber: type === 'Member'
-          ? (person.memberNumber || person.serialNumber || '')
-          : (person.linkedMemberNumber || person.serialNumber || person.memberNumber || ''),
-        gender: person.gender || '',
-        memberClass: type === 'Member' ? (person.memberClass || person.className || '') : (person.kidClass || person.childClass || ''),
-        guardian: type === 'Child' ? (person.guardian || '') : '',
-        phone: type === 'Member' ? (person.phone || person.memberNumber || '') : (person.phone || person.guardianPhone || ''),
-        presentCount,
-        absentCount,
-        totalSessions,
-        targetSessions,
-        attendanceRate,
-        consecutiveAbsences,
-        lastSeen,
-        status
-      };
-    }
-
-    function buildTrendRecords(rangeValue, selectedType, query) {
-      resetTrendIfNoLiveRecords();
-
-      const liveMembers = getLiveMembers();
-      const liveKids = getLiveKids();
-      const memberSessions = getFilteredMemberSessions(rangeValue);
-      const kidSessions = getFilteredKidsSessions(rangeValue);
-
-      const liveRecordCount =
-        selectedType === 'member' ? liveMembers.length :
-        selectedType === 'kid' ? liveKids.length :
-        liveMembers.length + liveKids.length;
-
-      const summary = getSessionSummary(rangeValue, selectedType, liveRecordCount > 0);
-      let records = [];
-
-      if (liveRecordCount === 0) return { records: [], ...summary, resetBecauseEmpty: true };
-      if (summary.sessionCount === 0) return { records: [], ...summary, resetBecauseEmpty: false };
-
-      if (selectedType === 'all' || selectedType === 'member') {
-        records.push(...liveMembers.map(member => buildTrendRecord(member, memberSessions, 'Member', summary.expectedSessions)));
-      }
-
-      if (selectedType === 'all' || selectedType === 'kid') {
-        records.push(...liveKids.map(kid => buildTrendRecord(kid, kidSessions, 'Child', summary.expectedSessions)));
-      }
-
-      const uniqueRecords = new Map();
-      records.forEach(item => {
-        if (!uniqueRecords.has(item.id)) uniqueRecords.set(item.id, item);
-      });
-      records = Array.from(uniqueRecords.values());
-
-      if (query) {
-        const q = normalizeText(query);
-        const qDigits = normalizeDigits(query);
-
-        records = records.filter(item => {
-          const textMatch =
-            normalizeText(item.fullName).includes(q) ||
-            normalizeText(item.memberNumber).includes(q) ||
-            normalizeText(item.phone).includes(q) ||
-            normalizeText(item.guardian).includes(q) ||
-            normalizeText(item.memberClass).includes(q);
-
-          const digitMatch = qDigits && (
-            normalizeDigits(item.memberNumber).includes(qDigits) ||
-            normalizeDigits(item.phone).includes(qDigits)
-          );
-
-          return textMatch || digitMatch;
-        });
-      }
-
-      return { records, ...summary };
-    }
-
-    function getPerformanceStatus(attendanceRate, consecutiveAbsences, totalSessions) {
-      if (!totalSessions) return 'No Attendance Yet';
-      if (consecutiveAbsences >= 4) return 'Low Performance';
-      if (attendanceRate >= 80) return 'Excellent Performance';
-      if (attendanceRate >= 50) return 'Good Performance';
+    function getPerformanceStatus(rate, streak, count) {
+      if (!count) return 'No Attendance Yet';
+      if (streak >= 4) return 'Low Performance';
+      if (rate >= 80) return 'Excellent Performance';
+      if (rate >= 50) return 'Good Performance';
       return 'Low Performance';
     }
-
     function getStatusClass(status) {
       if (status === 'Excellent Performance') return 'good';
       if (status === 'Good Performance') return 'warn';
       if (status === 'No Attendance Yet') return 'info';
       return 'bad';
     }
-
-    function formatDate(dateStr) {
-      if (!dateStr) return 'Never';
-      const d = new Date(dateStr);
-      if (isNaN(d.getTime())) return dateStr;
-      return d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
-    }
-
     function getProgressColor(rate) {
-      if (rate >= 80) return 'linear-gradient(90deg, #16a34a, #4ade80)';
-      if (rate >= 50) return 'linear-gradient(90deg, #d97706, #fbbf24)';
-      return 'linear-gradient(90deg, #dc2626, #f87171)';
+      if (rate >= 80) return 'linear-gradient(90deg,#16a34a,#4ade80)';
+      if (rate >= 50) return 'linear-gradient(90deg,#d97706,#fbbf24)';
+      return 'linear-gradient(90deg,#dc2626,#f87171)';
     }
-
-    function getFollowUpWhatsAppLink(item) {
-      const whatsappNumber = normalizeWhatsAppNumber(item.phone || '');
-      if (!whatsappNumber) return '';
-
-      const text = item.type === 'Child'
-        ? `Hello, Abelenkpe Seventh Day Adventist Church - Accra Newtown District has noticed that ${item.fullName}'s attendance performance is currently low. We kindly want to encourage the child and also check how the child is doing. We miss the child at church and hope to see the child again. God bless you.`
-        : `Hello ${item.fullName}, Abelenkpe Seventh Day Adventist Church - Accra Newtown District has noticed that your attendance performance is currently low. We kindly want to encourage you and check how you are doing. We miss you at church and hope to see you again. God bless you.`;
-
-      return `https://wa.me/${whatsappNumber}?text=${encodeURIComponent(text)}`;
+    function normalizeWhatsAppNumber(phone) {
+      let digits = String(phone || '').replace(/\D/g,'');
+      if (digits.length === 10 && digits.startsWith('0')) digits = '233' + digits.slice(1);
+      else if (digits.length === 9) digits = '233' + digits;
+      return digits.length === 12 && digits.startsWith('233') ? digits : '';
     }
-
-    function renderSessionInfo(sessionDates, missedWeeks, expectedSessions) {
+    function escapeHtml(value) {
+      return String(value ?? '').replace(/[&<>"']/g, char => ({
+        '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+      }[char]));
+    }
+    function getRangeSessions() {
+      const range = trendRange.value;
+      return trendSessions.filter(session =>
+        range === 'all' || getDateDiffDays(session.session_date) <= Number(range)
+      );
+    }
+    function expectedSessionsForRange(range, actualCount) {
+      if (range === 'all') return actualCount;
+      const days = Number(range);
+      if (days <= 30) return 4;
+      if (days <= 60) return 8;
+      if (days <= 90) return 13;
+      return Math.max(1, Math.round(days / 7));
+    }
+    function buildTrendRecords() {
+      const sessions = getRangeSessions();
+      const query = normalizeText(trendSearch.value);
+      const qDigits = normalizeDigits(trendSearch.value);
+      const expected = expectedSessionsForRange(trendRange.value, sessions.length);
+      let people = trendMembers.map(member => {
+        const history = sessions.map(session => {
+          const rows = trendRowsBySession.get(session.id) || new Map();
+          return {date: session.session_date, present: rows.get(member.id) === true};
+        });
+        const presentCount = history.filter(row => row.present).length;
+        const absentCount = Math.max(0, sessions.length - presentCount);
+        const chronological = [...history].sort((a,b) => new Date(b.date) - new Date(a.date));
+        let streak = 0;
+        for (const row of chronological) {
+          if (row.present) break;
+          streak++;
+        }
+        const lastPresent = chronological.find(row => row.present);
+        const rate = expected ? Math.round((presentCount / Math.max(expected, sessions.length)) * 100) : 0;
+        const status = getPerformanceStatus(rate, streak, sessions.length);
+        return {
+          id: member.id,
+          type: 'Member',
+          fullName: member.full_name || '',
+          memberNumber: member.member_number || '',
+          gender: member.gender || '',
+          memberClass: member.member_class || '',
+          phone: member.phone || '',
+          presentCount,
+          absentCount,
+          totalSessions: sessions.length,
+          targetSessions: Math.max(expected, sessions.length),
+          attendanceRate: Math.min(100, rate),
+          consecutiveAbsences: streak,
+          lastSeen: lastPresent?.date || null,
+          status
+        };
+      });
+      if (query) {
+        people = people.filter(person =>
+          normalizeText(person.fullName).includes(query) ||
+          normalizeText(person.memberNumber).includes(query) ||
+          normalizeText(person.phone).includes(query) ||
+          normalizeText(person.memberClass).includes(query) ||
+          (qDigits && (normalizeDigits(person.memberNumber).includes(qDigits) ||
+                       normalizeDigits(person.phone).includes(qDigits)))
+        );
+      }
+      return {records:people, sessions, expected};
+    }
+    function renderSessionInfo(sessions, expected) {
       const box = document.getElementById('sessionInfoBox');
-      const datePills = sessionDates.length
-        ? `<div class="session-dates">${sessionDates.map(date => `<span class="pill info">${formatDate(date)}</span>`).join('')}</div>`
-        : '';
-
+      const dates = sessions.map(session =>
+        `<span class="pill info">${escapeHtml(formatDate(session.session_date))}</span>`
+      ).join('');
       box.innerHTML = `
-        <div><strong>Closed/Saved attendance sessions:</strong> ${sessionDates.length} out of about ${expectedSessions} weekly session(s).</div>
-        <div><strong>Missed weeks:</strong> ${missedWeeks} week(s) with no closed attendance. These weeks are not counted as absences.</div>
-        ${datePills}
+        <div><strong>Supabase closed/saved sessions:</strong> ${sessions.length} of approximately ${expected} expected weekly session(s).</div>
+        <div><strong>Data source:</strong> Supabase attendance records and permanent attendance snapshots.</div>
+        <div class="session-dates">${dates || '<span class="muted">No saved session dates in this range.</span>'}</div>
       `;
     }
-
+    function getFollowUpWhatsAppLink(item) {
+      const number = normalizeWhatsAppNumber(item.phone);
+      if (!number) return '';
+      const message = `Hello ${item.fullName}, Abelenkpe Seventh-day Adventist Church - Accra Newtown District has noticed that your attendance performance is currently low. We kindly want to encourage you and check how you are doing. We miss you at church and hope to see you again. God bless you.`;
+      return `https://wa.me/${number}?text=${encodeURIComponent(message)}`;
+    }
     function renderTrend() {
-      const rangeValue = trendRange.value;
-      const selectedType = trendType.value;
-      const query = trendSearch.value.trim();
-
-      const { records, sessionCount, sessionDates, missedWeeks, expectedSessions, resetBecauseEmpty } = buildTrendRecords(rangeValue, selectedType, query);
-
-      document.getElementById('totalTrendRecords').textContent = records.length;
-      document.getElementById('excellentPerformance').textContent = records.filter(r => r.status === 'Excellent Performance').length;
-      document.getElementById('goodPerformance').textContent = records.filter(r => r.status === 'Good Performance').length;
-      document.getElementById('lowPerformance').textContent = records.filter(r => r.status === 'Low Performance').length;
-      document.getElementById('rangeSessions').textContent = sessionCount;
-
-      renderSessionInfo(sessionDates, missedWeeks, expectedSessions);
-
       const trendList = document.getElementById('trendList');
       const followupList = document.getElementById('followupList');
-      const followupInsight = document.getElementById('followupInsight');
+      const insight = document.getElementById('followupInsight');
 
-      if (resetBecauseEmpty) {
-        trendList.innerHTML = '<div class="trend-empty">All current records have been deleted for this filter. The trend has been reset and will start again when new records are added and attendance is closed/saved.</div>';
-        followupList.innerHTML = '<div class="followup-empty">No follow-up alert because there is no current member or child.</div>';
-        followupInsight.textContent = 'Old attendance sessions are cleared because there are no live records to track.';
+      if (trendLoading) {
+        trendList.innerHTML = '<div class="trend-empty">Loading attendance trends from Supabase...</div>';
+        followupList.innerHTML = '<div class="followup-empty">Please wait while attendance data loads.</div>';
+        return;
+      }
+      if (trendLoadError) {
+        trendList.innerHTML = `<div class="trend-empty">Could not load attendance data: ${escapeHtml(trendLoadError)}. Check your Supabase connection and table access.</div>`;
+        followupList.innerHTML = '<div class="followup-empty">Follow-up alerts are unavailable until attendance data loads.</div>';
+        insight.textContent = '';
         return;
       }
 
-      if (sessionCount === 0) {
-        trendList.innerHTML = '<div class="trend-empty">No closed/saved attendance session found yet. The trend will start after attendance is opened, marked, and closed/saved.</div>';
-        followupList.innerHTML = '<div class="followup-empty">No follow-up alert because there is no valid closed attendance session yet.</div>';
-        followupInsight.textContent = 'The system is not counting any person absent because attendance has not been closed/saved.';
+      const {records,sessions,expected} = buildTrendRecords();
+      document.getElementById('totalTrendRecords').textContent = records.length;
+      document.getElementById('excellentPerformance').textContent = records.filter(r=>r.status==='Excellent Performance').length;
+      document.getElementById('goodPerformance').textContent = records.filter(r=>r.status==='Good Performance').length;
+      document.getElementById('lowPerformance').textContent = records.filter(r=>r.status==='Low Performance').length;
+      document.getElementById('rangeSessions').textContent = sessions.length;
+      renderSessionInfo(sessions, expected);
+
+      if (trendType.value === 'kid') {
+        trendList.innerHTML = '<div class="trend-empty">Children attendance is not yet connected to Supabase in the main attendance system. This trend page currently reads member attendance only.</div>';
+        followupList.innerHTML = '<div class="followup-empty">Children follow-up alerts are unavailable until children attendance is stored in Supabase.</div>';
+        insight.textContent = 'Member attendance trends are connected to Supabase. Children trends require a separate children attendance data source.';
         return;
       }
-
+      if (!sessions.length) {
+        trendList.innerHTML = '<div class="trend-empty">No closed/saved member attendance sessions were found in Supabase for this period. Open attendance, mark attendance, then close it to create a trend record.</div>';
+        followupList.innerHTML = '<div class="followup-empty">No follow-up alerts because there are no closed/saved sessions in this period.</div>';
+        insight.textContent = 'Open sessions are intentionally excluded until they are closed.';
+        return;
+      }
       if (!records.length) {
-        trendList.innerHTML = '<div class="trend-empty">No current member or child found for this filter.</div>';
-        followupList.innerHTML = '<div class="followup-empty">No follow-up alert yet.</div>';
-        followupInsight.textContent = '';
+        trendList.innerHTML = '<div class="trend-empty">No active members match this search.</div>';
+        followupList.innerHTML = '<div class="followup-empty">No follow-up alerts for this search.</div>';
+        insight.textContent = '';
         return;
       }
 
       trendList.innerHTML = records.map(item => `
         <div class="record-card">
           <div class="record-top">
-            <div>
-              <h4>${item.fullName}</h4>
-              <span class="pill info">${item.type}</span>
-            </div>
-            <div><span class="pill ${getStatusClass(item.status)}">${item.status}</span></div>
+            <div><h4>${escapeHtml(item.fullName)}</h4><span class="pill info">Member</span></div>
+            <span class="pill ${getStatusClass(item.status)}">${escapeHtml(item.status)}</span>
           </div>
-
           <div class="record-meta">
-            <div class="meta-item"><strong>Number:</strong> ${item.memberNumber || 'N/A'}</div>
-            <div class="meta-item"><strong>Class:</strong> ${item.memberClass || 'N/A'}</div>
+            <div class="meta-item"><strong>Number:</strong> ${escapeHtml(item.memberNumber || 'N/A')}</div>
+            <div class="meta-item"><strong>Class:</strong> ${escapeHtml(item.memberClass || 'N/A')}</div>
             <div class="meta-item"><strong>Present:</strong> ${item.presentCount}</div>
             <div class="meta-item"><strong>Absent:</strong> ${item.absentCount}</div>
             <div class="meta-item"><strong>Completed Sessions:</strong> ${item.totalSessions}</div>
             <div class="meta-item"><strong>Target Sessions:</strong> ${item.targetSessions}</div>
             <div class="meta-item"><strong>Absent Streak:</strong> ${item.consecutiveAbsences} closed session(s)</div>
-            <div class="meta-item"><strong>Last Seen:</strong> ${formatDate(item.lastSeen)}</div>
-            ${item.type === 'Child' ? `<div class="meta-item"><strong>Guardian:</strong> ${item.guardian || 'N/A'}</div>` : ''}
-            ${item.phone ? `<div class="meta-item"><strong>Phone:</strong> ${item.phone}</div>` : ''}
+            <div class="meta-item"><strong>Last Seen:</strong> ${escapeHtml(formatDate(item.lastSeen))}</div>
+            ${item.phone ? `<div class="meta-item"><strong>Phone:</strong> ${escapeHtml(item.phone)}</div>` : ''}
           </div>
-
           <div class="progress-block">
-            <div class="progress-head">
-              <span>Monthly Progress Rate</span>
-              <strong>${item.attendanceRate}%</strong>
-            </div>
-            <div class="progress-track">
-              <div class="progress-fill" style="width:${item.attendanceRate}%; background:${getProgressColor(item.attendanceRate)};"></div>
-            </div>
+            <div class="progress-head"><span>Attendance Rate</span><strong>${item.attendanceRate}%</strong></div>
+            <div class="progress-track"><div class="progress-fill" style="width:${item.attendanceRate}%;background:${getProgressColor(item.attendanceRate)}"></div></div>
           </div>
         </div>
       `).join('');
 
       const alerts = records.filter(item => item.status === 'Low Performance' && item.consecutiveAbsences >= 4);
-
       if (!alerts.length) {
-        followupList.innerHTML = '<div class="followup-empty">No 4-week low attendance alert yet.</div>';
-        followupInsight.textContent = 'No one has reached 4 closed attendance absences yet. Low percentage can still show on the trend list, but prompt starts after 4 missed closed sessions.';
+        followupList.innerHTML = '<div class="followup-empty">No 4-session low attendance alert yet.</div>';
+        insight.textContent = 'Follow-up starts when a member misses four consecutive closed attendance sessions.';
       } else {
         followupList.innerHTML = alerts.map(item => {
-          const whatsappLink = getFollowUpWhatsAppLink(item);
-          return `
-            <div class="record-card alert-card">
-              <div class="record-top">
-                <div>
-                  <h4>${item.fullName}</h4>
-                  <span class="pill info">${item.type}</span>
-                </div>
-                <div><span class="pill ${getStatusClass(item.status)}">${item.status}</span></div>
-              </div>
-
-              <div class="record-meta">
-                <div class="meta-item"><strong>Absent Count:</strong> ${item.absentCount}</div>
-                <div class="meta-item"><strong>Absent Streak:</strong> ${item.consecutiveAbsences} closed session(s)</div>
-                <div class="meta-item"><strong>Last Seen:</strong> ${formatDate(item.lastSeen)}</div>
-                <div class="meta-item"><strong>Number:</strong> ${item.memberNumber || 'N/A'}</div>
-                ${item.type === 'Child' ? `<div class="meta-item"><strong>Guardian:</strong> ${item.guardian || 'N/A'}</div>` : ''}
-                ${item.phone ? `<div class="meta-item"><strong>Phone:</strong> ${item.phone}</div>` : ''}
-              </div>
-
-              <div class="alert-actions">
-                ${whatsappLink ? `<a class="btn" target="_blank" href="${whatsappLink}">Send Encouragement Message</a>` : `<span class="muted">No phone number available for follow-up message.</span>`}
-              </div>
+          const link = getFollowUpWhatsAppLink(item);
+          return `<div class="record-card alert-card">
+            <div class="record-top"><div><h4>${escapeHtml(item.fullName)}</h4><span class="pill info">Member</span></div><span class="pill bad">Low Performance</span></div>
+            <div class="record-meta">
+              <div class="meta-item"><strong>Absent Count:</strong> ${item.absentCount}</div>
+              <div class="meta-item"><strong>Absent Streak:</strong> ${item.consecutiveAbsences} closed session(s)</div>
+              <div class="meta-item"><strong>Last Seen:</strong> ${escapeHtml(formatDate(item.lastSeen))}</div>
+              <div class="meta-item"><strong>Number:</strong> ${escapeHtml(item.memberNumber || 'N/A')}</div>
+              ${item.phone ? `<div class="meta-item"><strong>Phone:</strong> ${escapeHtml(item.phone)}</div>` : ''}
             </div>
-          `;
+            <div class="alert-actions">${link ? `<a class="btn" target="_blank" rel="noopener" href="${link}">Send Encouragement Message</a>` : '<span class="muted">No phone number available for follow-up.</span>'}</div>
+          </div>`;
         }).join('');
+        insight.textContent = `Encouragement message ready for ${alerts.length} member(s) with four or more consecutive closed-session absences.`;
+      }
+    }
 
-        const fourWeekAbsentees = alerts.filter(a => a.consecutiveAbsences >= 4).length;
-        followupInsight.textContent = `Encouragement prompt ready for ${alerts.length} case(s). These are people with low performance and 4 or more missed closed attendance sessions.`;
+    async function loadTrendData() {
+      if (!churchSupabase) {
+        trendLoadError = 'Supabase client is not available. Check supabase-config.js and the Supabase library.';
+        renderTrend();
+        return;
+      }
+      trendLoading = true;
+      trendLoadError = '';
+      renderTrend();
+      try {
+        const {data: members, error: membersError} = await churchSupabase
+          .from('members')
+          .select('id,full_name,member_number,gender,member_class,phone,is_active')
+          .eq('is_active', true)
+          .order('full_name');
+        if (membersError) throw membersError;
+        trendMembers = members || [];
+
+        const {data: sessions, error: sessionsError} = await churchSupabase
+          .from('attendance_sessions')
+          .select('id,session_date,opened_at,closed_at,is_open,attendance_type')
+          .eq('attendance_type', 'members')
+          .eq('is_open', false)
+          .order('session_date', {ascending: true});
+        if (sessionsError) throw sessionsError;
+        trendSessions = sessions || [];
+        trendRowsBySession = new Map();
+
+        if (trendSessions.length) {
+          const sessionIds = trendSessions.map(session => session.id);
+          const {data: snapshots, error: snapshotError} = await churchSupabase
+            .from('attendance_member_snapshots')
+            .select('session_id,member_id,present')
+            .in('session_id', sessionIds);
+          if (snapshotError) throw snapshotError;
+
+          const snapshotSessions = new Set();
+          (snapshots || []).forEach(row => {
+            if (!trendRowsBySession.has(row.session_id)) trendRowsBySession.set(row.session_id, new Map());
+            trendRowsBySession.get(row.session_id).set(row.member_id, row.present === true);
+            snapshotSessions.add(row.session_id);
+          });
+
+          // Older closed sessions may predate permanent snapshots.
+          const legacyIds = sessionIds.filter(id => !snapshotSessions.has(id));
+          if (legacyIds.length) {
+            const {data: attendanceRows, error: attendanceError} = await churchSupabase
+              .from('member_attendance')
+              .select('session_id,member_id,present')
+              .in('session_id', legacyIds);
+            if (attendanceError) throw attendanceError;
+            (attendanceRows || []).forEach(row => {
+              if (!trendRowsBySession.has(row.session_id)) trendRowsBySession.set(row.session_id, new Map());
+              trendRowsBySession.get(row.session_id).set(row.member_id, row.present === true);
+            });
+          }
+        }
+      } catch (error) {
+        console.error('Attendance trend load failed:', error);
+        trendLoadError = error.message || String(error);
+      } finally {
+        trendLoading = false;
+        renderTrend();
       }
     }
 
     function buildTrendPrint() {
-      const rangeValue = trendRange.value;
-      const selectedType = trendType.value;
-      const query = trendSearch.value.trim();
-      const { records, sessionCount, sessionDates, missedWeeks, expectedSessions } = buildTrendRecords(rangeValue, selectedType, query);
+      const {records,sessions,expected} = buildTrendRecords();
       const followups = records.filter(item => item.status === 'Low Performance' && item.consecutiveAbsences >= 4);
       const area = document.getElementById('trendPrintArea');
-
       area.innerHTML = `
         <div class="report-header">
           <h2>Attendance Trend Performance Report</h2>
           <p>Date: ${new Date().toLocaleDateString()}</p>
-          <p>Range: ${isAllTimeRange(rangeValue) ? 'All Time' : rangeValue + ' Days'}</p>
-          <p>Type Filter: ${selectedType}</p>
-          <p>Valid Closed/Saved Attendance Sessions: ${sessionCount}</p>
-          <p>Expected Weekly Sessions: ${expectedSessions}</p>
-          <p>Missed Weeks Not Counted: ${missedWeeks}</p>
-          <p>Session Dates: ${sessionDates.length ? sessionDates.map(formatDate).join(', ') : 'None'}</p>
+          <p>Range: ${trendRange.value === 'all' ? 'All Time' : trendRange.value + ' Days'}</p>
+          <p>Valid Closed/Saved Attendance Sessions: ${sessions.length}</p>
+          <p>Expected Weekly Sessions: ${expected}</p>
         </div>
-
         <div class="report-summary">
-          <div class="summary-box"><strong>Total Live Records</strong><span>${records.length}</span></div>
-          <div class="summary-box"><strong>Valid Sessions</strong><span>${sessionCount}</span></div>
-          <div class="summary-box"><strong>4-Week Prompt Cases</strong><span>${followups.length}</span></div>
+          <div class="summary-box"><strong>Total Active Members</strong><span>${records.length}</span></div>
+          <div class="summary-box"><strong>Valid Sessions</strong><span>${sessions.length}</span></div>
+          <div class="summary-box"><strong>4-Session Prompt Cases</strong><span>${followups.length}</span></div>
         </div>
-
-        <table class="report-table">
-          <thead>
-            <tr>
-              <th>#</th><th>Name</th><th>Type</th><th>Number</th><th>Present</th><th>Absent</th><th>Absent Streak</th><th>Rate</th><th>Last Seen</th><th>Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${followups.length ? followups.map((item, index) => `
-              <tr>
-                <td>${index + 1}</td><td>${item.fullName}</td><td>${item.type}</td><td>${item.memberNumber || 'N/A'}</td><td>${item.presentCount}</td><td>${item.absentCount}</td><td>${item.consecutiveAbsences}</td><td>${item.attendanceRate}%</td><td>${formatDate(item.lastSeen)}</td><td>${item.status}</td>
-              </tr>
-            `).join('') : `<tr><td colspan="10" style="text-align:center;">No 4-week low attendance prompt cases found.</td></tr>`}
-          </tbody>
-        </table>
+        <table class="report-table"><thead><tr><th>#</th><th>Name</th><th>Number</th><th>Present</th><th>Absent</th><th>Absent Streak</th><th>Rate</th><th>Last Seen</th><th>Status</th></tr></thead>
+        <tbody>${records.length ? records.map((item,index)=>`<tr><td>${index+1}</td><td>${escapeHtml(item.fullName)}</td><td>${escapeHtml(item.memberNumber)}</td><td>${item.presentCount}</td><td>${item.absentCount}</td><td>${item.consecutiveAbsences}</td><td>${item.attendanceRate}%</td><td>${escapeHtml(formatDate(item.lastSeen))}</td><td>${escapeHtml(item.status)}</td></tr>`).join('') : '<tr><td colspan="9">No records found.</td></tr>'}</tbody></table>
+        <h3 style="margin-top:20px;">Four-session follow-up list</h3>
+        <p>${followups.length ? followups.map(item=>escapeHtml(item.fullName)).join(', ') : 'No follow-up cases.'}</p>
       `;
     }
 
     trendRange.addEventListener('change', renderTrend);
     trendType.addEventListener('change', renderTrend);
     trendSearch.addEventListener('input', renderTrend);
-
     document.getElementById('printTrendBtn').addEventListener('click', () => {
       buildTrendPrint();
       window.print();
     });
 
-    document.getElementById('resetTrendBtn').addEventListener('click', () => {
-      if (!confirm('Reset all trend attendance history? This will clear old valid attendance sessions and start the trend again.')) return;
-      clearTrendAttendanceHistory();
-      renderTrend();
-      alert('Trend history has been reset. Valid attendance sessions are now cleared.');
-    });
+    // Refresh from Supabase rather than deleting permanent attendance history.
+    const resetButton = document.getElementById('resetTrendBtn');
+    resetButton.textContent = 'Refresh Trend Data';
+    resetButton.addEventListener('click', loadTrendData);
 
-    window.addEventListener('storage', () => renderTrend());
-    renderTrend();
+    window.addEventListener('focus', loadTrendData);
+    loadTrendData();
   </script>
 </body>
 </html>
