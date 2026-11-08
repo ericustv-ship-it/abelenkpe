@@ -1991,6 +1991,22 @@ img, video, iframe, canvas {
   <!-- Shared Supabase Configuration -->
   <script src="supabase-config.js"></script>
 
+  <div id="profileCameraModal" class="hidden" role="dialog" aria-modal="true" aria-labelledby="profileCameraTitle"
+       style="position:fixed;inset:0;z-index:5000;background:rgba(15,23,42,.82);padding:18px;display:flex;align-items:center;justify-content:center;">
+    <div style="width:min(520px,100%);background:#fff;border-radius:18px;padding:18px;box-shadow:0 20px 60px rgba(0,0,0,.3);">
+      <h3 id="profileCameraTitle" style="margin-bottom:12px;">Take Profile Photo</h3>
+      <video id="profileCameraVideo" autoplay playsinline muted
+             style="width:100%;max-height:55vh;min-height:220px;object-fit:cover;background:#111;border-radius:12px;"></video>
+      <canvas id="profileCameraCanvas" class="hidden"></canvas>
+      <p id="profileCameraMessage" class="muted" style="margin:10px 0;" aria-live="polite">Allow camera access when your browser asks.</p>
+      <div class="btn-row">
+        <button type="button" class="btn btn-primary" id="takeCameraSnapshotBtn">Capture Photo</button>
+        <button type="button" class="btn btn-light" id="closeProfileCameraBtn">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+
   <script>
 
     const navButtons = document.querySelectorAll('.nav-btn');
@@ -4832,6 +4848,10 @@ document.getElementById('downloadMembersExcelBtn').addEventListener('click', dow
 
     async function openProfileCamera(inputId) {
       activeProfilePhotoInputId = inputId;
+      if (!profileCameraModal || !profileCameraVideo || !profileCameraMessage) {
+        alert('Camera window could not be initialized. Please refresh the page.');
+        return;
+      }
       profileCameraMessage.textContent = 'Starting camera...';
       profileCameraModal.classList.remove('hidden');
 
@@ -4851,10 +4871,17 @@ document.getElementById('downloadMembersExcelBtn').addEventListener('click', dow
         await profileCameraVideo.play();
         profileCameraMessage.textContent = 'Position your face in the frame, then select Capture Photo.';
       } catch (err) {
-        profileCameraMessage.textContent =
-          'Could not open the camera: ' + (err.name === 'NotAllowedError'
-            ? 'Please allow camera permission in your browser.'
-            : err.message || 'Check that a camera is connected.');
+        console.error('Profile camera error:', err);
+        const reason = err.name === 'NotAllowedError'
+          ? 'Camera permission was blocked. Click the site icon beside the address bar, allow Camera, then reload.'
+          : err.name === 'NotFoundError'
+            ? 'No camera was found on this device.'
+            : err.name === 'NotReadableError'
+              ? 'The camera is already being used by another app. Close other camera apps and try again.'
+              : err.name === 'OverconstrainedError'
+                ? 'The requested camera mode is unavailable. Try another camera.'
+                : (err.message || 'Check your camera and browser permissions.');
+        profileCameraMessage.textContent = 'Could not open the camera: ' + reason;
       }
     }
 
@@ -4917,21 +4944,6 @@ document.getElementById('downloadMembersExcelBtn').addEventListener('click', dow
     });
 
   </script>
-
-  <div id="profileCameraModal" class="hidden" role="dialog" aria-modal="true" aria-labelledby="profileCameraTitle"
-       style="position:fixed;inset:0;z-index:5000;background:rgba(15,23,42,.82);padding:18px;display:flex;align-items:center;justify-content:center;">
-    <div style="width:min(520px,100%);background:#fff;border-radius:18px;padding:18px;box-shadow:0 20px 60px rgba(0,0,0,.3);">
-      <h3 id="profileCameraTitle" style="margin-bottom:12px;">Take Profile Photo</h3>
-      <video id="profileCameraVideo" autoplay playsinline muted
-             style="width:100%;max-height:55vh;min-height:220px;object-fit:cover;background:#111;border-radius:12px;"></video>
-      <canvas id="profileCameraCanvas" class="hidden"></canvas>
-      <p id="profileCameraMessage" class="muted" style="margin:10px 0;" aria-live="polite">Allow camera access when your browser asks.</p>
-      <div class="btn-row">
-        <button type="button" class="btn btn-primary" id="takeCameraSnapshotBtn">Capture Photo</button>
-        <button type="button" class="btn btn-light" id="closeProfileCameraBtn">Cancel</button>
-      </div>
-    </div>
-  </div>
 
   <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
 </body>
