@@ -1550,7 +1550,10 @@ img, video, iframe, canvas {
                   <img id="profilePhotoPreview" class="profile-photo-preview" alt="Profile photo preview" />
                   <div class="profile-photo-input">
                     <input type="file" id="profilePhoto" accept="image/png,image/jpeg,image/webp" />
-                    <small class="muted">JPG, PNG or WebP. Maximum 3 MB.</small>
+                    <div class="btn-row" style="margin-top:8px;">
+                      <button type="button" class="btn btn-light" id="captureProfilePhotoBtn">📷 Take Photo</button>
+                    </div>
+                    <small class="muted">Upload an image or take a live photo. JPG, PNG or WebP. Maximum 3 MB.</small>
                   </div>
                 </div>
               </div>
@@ -1660,7 +1663,10 @@ img, video, iframe, canvas {
                   <img id="selfProfilePhotoPreview" class="profile-photo-preview" alt="Profile photo preview" />
                   <div class="profile-photo-input">
                     <input type="file" id="selfProfilePhoto" accept="image/png,image/jpeg,image/webp" />
-                    <small class="muted">JPG, PNG or WebP. Maximum 3 MB.</small>
+                    <div class="btn-row" style="margin-top:8px;">
+                      <button type="button" class="btn btn-light" id="captureSelfProfilePhotoBtn">📷 Take Photo</button>
+                    </div>
+                    <small class="muted">Upload an image or take a live photo. JPG, PNG or WebP. Maximum 3 MB.</small>
                   </div>
                 </div>
               </div>
@@ -4800,7 +4806,133 @@ function downloadMembersExcel() {
 }
 
 document.getElementById('downloadMembersExcelBtn').addEventListener('click', downloadMembersExcel);
+  
+    // Live profile-photo capture. The captured image is placed in the same
+    // file input used by the existing Supabase upload workflow.
+    const profileCameraModal = document.getElementById('profileCameraModal');
+    const profileCameraVideo = document.getElementById('profileCameraVideo');
+    const profileCameraCanvas = document.getElementById('profileCameraCanvas');
+    const profileCameraMessage = document.getElementById('profileCameraMessage');
+    let profileCameraStream = null;
+    let activeProfilePhotoInputId = null;
+
+    function stopProfileCamera() {
+      if (profileCameraStream) {
+        profileCameraStream.getTracks().forEach(track => track.stop());
+        profileCameraStream = null;
+      }
+      if (profileCameraVideo) profileCameraVideo.srcObject = null;
+    }
+
+    function closeProfileCamera() {
+      stopProfileCamera();
+      profileCameraModal.classList.add('hidden');
+      activeProfilePhotoInputId = null;
+    }
+
+    async function openProfileCamera(inputId) {
+      activeProfilePhotoInputId = inputId;
+      profileCameraMessage.textContent = 'Starting camera...';
+      profileCameraModal.classList.remove('hidden');
+
+      if (!navigator.mediaDevices?.getUserMedia) {
+        profileCameraMessage.textContent =
+          'Camera access is unavailable. Open the website using HTTPS (or localhost) and use a supported browser.';
+        return;
+      }
+
+      try {
+        stopProfileCamera();
+        profileCameraStream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 1280 } },
+          audio: false
+        });
+        profileCameraVideo.srcObject = profileCameraStream;
+        await profileCameraVideo.play();
+        profileCameraMessage.textContent = 'Position your face in the frame, then select Capture Photo.';
+      } catch (err) {
+        profileCameraMessage.textContent =
+          'Could not open the camera: ' + (err.name === 'NotAllowedError'
+            ? 'Please allow camera permission in your browser.'
+            : err.message || 'Check that a camera is connected.');
+      }
+    }
+
+    document.getElementById('captureProfilePhotoBtn')?.addEventListener('click', () => {
+      openProfileCamera('profilePhoto');
+    });
+    document.getElementById('captureSelfProfilePhotoBtn')?.addEventListener('click', () => {
+      openProfileCamera('selfProfilePhoto');
+    });
+    document.getElementById('closeProfileCameraBtn')?.addEventListener('click', closeProfileCamera);
+
+    document.getElementById('takeCameraSnapshotBtn')?.addEventListener('click', () => {
+      if (!profileCameraStream || !profileCameraVideo.videoWidth) {
+        profileCameraMessage.textContent = 'Camera is not ready yet. Please wait a moment.';
+        return;
+      }
+
+      const maxSide = 1200;
+      const scale = Math.min(1, maxSide / Math.max(profileCameraVideo.videoWidth, profileCameraVideo.videoHeight));
+      const width = Math.round(profileCameraVideo.videoWidth * scale);
+      const height = Math.round(profileCameraVideo.videoHeight * scale);
+      profileCameraCanvas.width = width;
+      profileCameraCanvas.height = height;
+      const context = profileCameraCanvas.getContext('2d');
+      context.drawImage(profileCameraVideo, 0, 0, width, height);
+
+      profileCameraCanvas.toBlob(blob => {
+        if (!blob) {
+          profileCameraMessage.textContent = 'Could not capture the photo. Please try again.';
+          return;
+        }
+
+        const photoFile = new File([blob], `member-profile-${Date.now()}.jpg`, {
+          type: 'image/jpeg',
+          lastModified: Date.now()
+        });
+
+        if (photoFile.size > 3 * 1024 * 1024) {
+          profileCameraMessage.textContent = 'Captured image is larger than 3 MB. Please capture again.';
+          return;
+        }
+
+        const input = document.getElementById(activeProfilePhotoInputId);
+        if (!input) {
+          profileCameraMessage.textContent = 'The profile photo field could not be found.';
+          return;
+        }
+
+        const transfer = new DataTransfer();
+        transfer.items.add(photoFile);
+        input.files = transfer.files;
+        input.dispatchEvent(new Event('change', { bubbles: true }));
+        closeProfileCamera();
+      }, 'image/jpeg', 0.88);
+    });
+
+    // Stop the camera if the user leaves or hides the page.
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden && profileCameraStream) closeProfileCamera();
+    });
+
   </script>
+
+  <div id="profileCameraModal" class="hidden" role="dialog" aria-modal="true" aria-labelledby="profileCameraTitle"
+       style="position:fixed;inset:0;z-index:5000;background:rgba(15,23,42,.82);padding:18px;display:flex;align-items:center;justify-content:center;">
+    <div style="width:min(520px,100%);background:#fff;border-radius:18px;padding:18px;box-shadow:0 20px 60px rgba(0,0,0,.3);">
+      <h3 id="profileCameraTitle" style="margin-bottom:12px;">Take Profile Photo</h3>
+      <video id="profileCameraVideo" autoplay playsinline muted
+             style="width:100%;max-height:55vh;min-height:220px;object-fit:cover;background:#111;border-radius:12px;"></video>
+      <canvas id="profileCameraCanvas" class="hidden"></canvas>
+      <p id="profileCameraMessage" class="muted" style="margin:10px 0;" aria-live="polite">Allow camera access when your browser asks.</p>
+      <div class="btn-row">
+        <button type="button" class="btn btn-primary" id="takeCameraSnapshotBtn">Capture Photo</button>
+        <button type="button" class="btn btn-light" id="closeProfileCameraBtn">Cancel</button>
+      </div>
+    </div>
+  </div>
+
   <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
 </body>
 </html>
