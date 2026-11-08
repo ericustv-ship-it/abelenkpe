@@ -4079,17 +4079,31 @@ const whatsappLink = whatsappNumber
         const { error: uploadError } = await churchSupabase.storage.from(RECORD_BUCKET).upload(path, file, {
           cacheControl: '3600', upsert: false, contentType: file.type || 'application/octet-stream'
         });
-        if (uploadError) throw uploadError;
-        const payload = {
-          title: document.getElementById('recordTitle').value.trim(),
-          category: document.getElementById('recordCategory').value,
-          record_date: document.getElementById('recordDate').value || null,
-          description: document.getElementById('recordDescription').value.trim() || null,
-          file_name: file.name, storage_path: path,
-          uploaded_by: (await churchSupabase.auth.getUser()).data.user?.id
-        };
-        const { error: insertError } = await churchSupabase.from('church_records').insert(payload);
-        if (insertError) { await churchSupabase.storage.from(RECORD_BUCKET).remove([path]); throw insertError; }
+       const { data: authData, error: authError } =
+    await churchSupabase.auth.getUser();
+
+if (authError) throw authError;
+
+const payload = {
+    title: document.getElementById('recordTitle').value.trim(),
+    category: document.getElementById('recordCategory').value,
+    record_date: document.getElementById('recordDate').value || null,
+    description: document.getElementById('recordDescription').value.trim() || null,
+    file_name: file.name,
+    storage_path: path,
+    mime_type: file.type || 'application/octet-stream',
+    file_size: file.size,
+    uploaded_by: authData.user?.id || null
+};
+
+const { error: insertError } = await churchSupabase
+    .from('church_records')
+    .insert(payload);
+
+if (insertError) {
+    await churchSupabase.storage.from(RECORD_BUCKET).remove([path]);
+    throw insertError;
+}
         event.currentTarget.reset(); generatedRecordFile = null; generatedRecordHtml = ''; updateRecordWorkspace(); message.textContent = 'Church record uploaded and saved successfully.';
         await loadChurchRecords();
       } catch (err) { message.textContent = 'Upload failed: ' + err.message; }
