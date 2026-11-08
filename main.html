@@ -4065,6 +4065,7 @@ const whatsappLink = whatsappNumber
     });
     document.getElementById('recordForm').addEventListener('submit', async event => {
       event.preventDefault();
+      const form = event.currentTarget;
       if (!canManageRecords()) return alert('Only the Main Administrator or Secretary can upload records.');
       const file = document.getElementById('recordFile').files[0] || generatedRecordFile;
       const message = document.getElementById('recordUploadMessage');
@@ -4104,7 +4105,7 @@ if (insertError) {
     await churchSupabase.storage.from(RECORD_BUCKET).remove([path]);
     throw insertError;
 }
-        event.currentTarget.reset(); generatedRecordFile = null; generatedRecordHtml = ''; updateRecordWorkspace(); message.textContent = 'Church record uploaded and saved successfully.';
+        form.reset(); generatedRecordFile = null; generatedRecordHtml = ''; updateRecordWorkspace(); message.textContent = 'Church record uploaded and saved successfully.';
         await loadChurchRecords();
       } catch (err) { message.textContent = 'Upload failed: ' + err.message; }
       finally { button.disabled = false; button.textContent = 'Upload Record'; }
