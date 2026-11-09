@@ -99,6 +99,10 @@
       gap: 16px;
     }
 
+    .class-badge { display: inline-block; margin: 8px 0 12px; padding: 7px 14px; border-radius: 999px; font-size: .85rem; font-weight: 800; background: #dbeafe; color: #1e40af; }
+    .class-badge.judah { background: #fef3c7; color: #92400e; }
+    .class-badge.unknown { background: #f3f4f6; color: #374151; }
+
     .leader-box {
       background: #ecfdf5;
       border: 1px solid #bbf7d0;
@@ -189,7 +193,7 @@
   <div class="topbar">
     <div>
       <h1>Sabbath School Class</h1>
-      <p class="muted">Members assigned to discussion leaders based on Sabbath School class names.</p>
+      <p class="muted">Members reshuffled across groups; each group is named DAN or JUDAH based on its discussion leader.</p>
     </div>
 
     <div>
@@ -293,6 +297,13 @@
       };
     }
 
+    function getLeaderClass(leader) {
+      const value = cleanText(leader.memberClass).toUpperCase();
+      if (value.includes('JUDAH')) return 'JUDAH';
+      if (value.includes('DAN')) return 'DAN';
+      return value || 'UNASSIGNED';
+    }
+
     function isDiscussionLeader(member) {
       return cleanText(member.note) === 'discussion leader';
     }
@@ -392,7 +403,8 @@
 
       const leaderGroups = leaders.map((leader, index) => ({
         className: `Sabbath School Group ${index + 1}`,
-        groupName: `Sabbath School Group ${index + 1} - ${leader.fullName || 'Discussion Leader'}`,
+        leaderClass: getLeaderClass(leader),
+        groupName: `${getLeaderClass(leader)} - Group ${index + 1} - ${leader.fullName || 'Discussion Leader'}`,
         leaderId: leader.id,
         leaders: [{
           id: leader.id,
@@ -501,7 +513,7 @@
           <div class="card">
             <p class="muted">
               No saved class arrangement found for ${getSelectedYear()}.
-              Click “Generate / Save Year Classes” to create the arrangement from members' registered Sabbath School classes.
+              Click “Generate / Save Year Classes” to reshuffle members into groups identified by each leader’s registered class.
             </p>
           </div>
         `;
@@ -510,12 +522,16 @@
 
       container.innerHTML = generatedClasses.map(group => {
         const groupMembers = Array.isArray(group.members) ? group.members : [];
+        const registeredLeader = members.find(member => String(member.id) === String(group.leaderId));
+        const leaderClass = registeredLeader ? getLeaderClass(registeredLeader) : (group.leaderClass || 'UNASSIGNED');
+        const groupLabel = `${leaderClass} - ${group.className || 'Sabbath School Group'} - ${(group.leaders || [])[0]?.fullName || 'Discussion Leader'}`;
         const maleCount = groupMembers.filter(member => cleanText(member.gender) === 'male').length;
         const femaleCount = groupMembers.filter(member => cleanText(member.gender) === 'female').length;
 
         return `
           <div class="card">
-            <h3>${escapeHtml(group.groupName || group.className)}</h3>
+            <h3>${escapeHtml(groupLabel)}</h3>
+            <span class="class-badge ${leaderClass === 'JUDAH' ? 'judah' : leaderClass === 'DAN' ? '' : 'unknown'}">${escapeHtml(leaderClass)} CLASS</span>
             ${renderLeaderBox(group.leaders)}
 
             <p class="muted">
