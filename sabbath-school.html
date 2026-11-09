@@ -242,14 +242,23 @@
   <script src="supabase-config.js"></script>
 
   <script>
-    let members = JSON.parse(localStorage.getItem('church_members') || '[]');
+    // Reuse the shared Supabase client initialized by supabase-config.js.
+    // Do not declare a top-level variable named "supabase": the Supabase CDN
+    // already exposes that global name.
+    const churchSupabase = window.supabaseClient || null;
+
+    let members = [];
     let generatedClasses = [];
+    let isAdminLoggedIn = false;
 
     const currentYear = new Date().getFullYear();
-    document.getElementById('classYear').value = currentYear;
+    const yearInput = document.getElementById('classYear');
+    const container = document.getElementById('classContainer');
+
+    yearInput.value = currentYear;
 
     function getSelectedYear() {
-      return document.getElementById('classYear').value || currentYear;
+      return Number(yearInput.value) || currentYear;
     }
 
     function getStorageKey() {
@@ -257,142 +266,192 @@
     }
 
     function cleanText(value) {
-      return String(value || '')
-        .toLowerCase()
-        .replace(/\s+/g, ' ')
-        .trim();
+      return String(value ?? '').toLowerCase().replace(/\s+/g, ' ').trim();
+    }
+
+    function escapeHtml(value) {
+      return String(value ?? '').replace(/[&<>"']/g, character => ({
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#39;'
+      }[character]));
+    }
+
+    function mapMember(row) {
+      return {
+        id: row.id,
+        fullName: row.full_name || '',
+        memberNumber: row.member_number || '',
+        gender: row.gender || '',
+        // Supabase column is member_class; the page uses memberClass.
+        memberClass: row.member_class || '',
+        dob: row.dob || '',
+        phone: row.phone || '',
+        note: row.note || ''
+      };
     }
 
     function isDiscussionLeader(member) {
       return cleanText(member.note) === 'discussion leader';
     }
 
-    function isNormalMember(member) {
-      return cleanText(member.note) === 'member' || !cleanText(member.note);
-    }
-
     function getGenderClass(gender) {
       const value = cleanText(gender);
-
       if (value === 'male') return 'male';
       if (value === 'female') return 'female';
-
       return 'other';
     }
 
-   function shuffleArray(array) {
-  return [...array].sort(() => Math.random() - 0.5);
-}
+    async function verifyAdminAccess() {
+      if (!churchSupabase) {
+        throw new Error('Supabase is not connected. Check supabase-config.js and the Supabase library.');
+      }
 
-function generateClasses() {
-  members = JSON.parse(localStorage.getItem('church_members') || '[]');
+      const { data: sessionData, error: sessionError } = await churchSupabase.auth.getSession();
+      if (sessionError) throw sessionError;
 
-  if (!members.length) {
-    alert('No registered members found.');
-    return;
-  }
+      const user = sessionData?.session?.user;
+      if (!user) {
+        throw new Error('Please log in as an approved church administrator from the main page, then open Sabbath School Class again.');
+      }
 
-  const discussionLeaders = shuffleArray(
-    members.filter(member => isDiscussionLeader(member))
-  );
+      const { data: profile, error: profileError } = await churchSupabase
+        .from('profiles')
+        .select('role, approval_status')
+        .eq('id', user.id)
+        .maybeSingle();
 
-  const normalMembers = shuffleArray(
-    members.filter(member => !isDiscussionLeader(member))
-  );
+      if (profileError) throw profileError;
 
-  if (!discussionLeaders.length) {
-    alert('No discussion leader found. Please set some members note as DISCUSSION LEADER.');
-    return;
-  }
+      if (profile?.role !== 'admin' || profile?.approval_status !== 'approved') {
+        throw new Error('Approved administrator access is required to view registered members.');
+      }
 
-  const classNames = [...new Set(
-    members
-      .map(member => String(member.memberClass || '').trim())
-      .filter(Boolean)
-  )];
+      isAdminLoggedIn = true;
+      return true;
+    }
 
-  if (!classNames.length) {
-    alert('No Sabbath School class names found.');
-    return;
-  }
+    async function loadMembersFromSupabase() {
+      await verifyAdminAccess();
 
-  generatedClasses = classNames.map((className, index) => ({
-    className,
-    leaders: [],
-    members: []
-  }));
+      const { data, error } = await churchSupabase
+        .from('members')
+        .select('id, full_name, member_number, gender, member_class, dob, phone, note')
+        .eq('is_active', true)
+        .order('full_name', { ascending: true });
 
-  discussionLeaders.forEach((leader, index) => {
-    const targetClass = generatedClasses[index % generatedClasses.length];
+      if (error) throw error;
 
-    targetClass.leaders.push({
-      id: leader.id,
-      fullName: leader.fullName,
-      serial: leader.memberNumber || 'N/A',
-      gender: leader.gender || 'N/A',
-      phone: leader.phone || 'N/A'
-    });
+      members = (data || []).map(mapMember);
+      renderStats();
+    }
 
-    targetClass.members.push({
-      ...leader,
-      role: 'Discussion Leader'
-    });
-  });
-
-  const males = shuffleArray(
-    normalMembers.filter(member => cleanText(member.gender) === 'male')
-  );
-
-  const females = shuffleArray(
-    normalMembers.filter(member => cleanText(member.gender) === 'female')
-  );
-
-  const others = shuffleArray(
-    normalMembers.filter(member => {
-      const gender = cleanText(member.gender);
-      return gender !== 'male' && gender !== 'female';
-    })
-  );
-
-  const balancedMembers = [];
-  const maxLength = Math.max(males.length, females.length, others.length);
-
-  for (let i = 0; i < maxLength; i++) {
-    if (males[i]) balancedMembers.push(males[i]);
-    if (females[i]) balancedMembers.push(females[i]);
-    if (others[i]) balancedMembers.push(others[i]);
-  }
-
-  balancedMembers.forEach((member, index) => {
-    const targetClass = generatedClasses[index % generatedClasses.length];
-
-    targetClass.members.push({
-      ...member,
-      role: 'Member'
-    });
-  });
-
-  generatedClasses = generatedClasses.map(group => ({
-    ...group,
-    members: group.members.sort((a, b) => {
-      if (a.role === 'Discussion Leader' && b.role !== 'Discussion Leader') return -1;
-      if (a.role !== 'Discussion Leader' && b.role === 'Discussion Leader') return 1;
-      return String(a.fullName || '').localeCompare(String(b.fullName || ''));
-    })
-  }));
-
-  localStorage.setItem(getStorageKey(), JSON.stringify(generatedClasses));
-  renderClasses();
-
-  alert(`New Sabbath School classes generated and saved for ${getSelectedYear()}.`);
-}
     function loadYearClasses() {
-      generatedClasses = JSON.parse(localStorage.getItem(getStorageKey()) || '[]');
+      try {
+        generatedClasses = JSON.parse(localStorage.getItem(getStorageKey()) || '[]');
+        if (!Array.isArray(generatedClasses)) generatedClasses = [];
+      } catch (error) {
+        console.error('Could not read saved Sabbath School classes:', error);
+        generatedClasses = [];
+      }
       renderClasses();
     }
 
+    function shuffleArray(items) {
+      const shuffled = [...items];
+      for (let i = shuffled.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+      }
+      return shuffled;
+    }
+
+    function generateClasses() {
+      if (!members.length) {
+        alert('No active registered members were found in Supabase.');
+        return;
+      }
+
+      // Members from ALL original Sabbath School classes are pooled together.
+      // Discussion leaders remain fixed; ordinary members are reshuffled
+      // across all leader groups whenever Generate is clicked.
+      const leaders = members
+        .filter(member => isDiscussionLeader(member))
+        .sort((a, b) => String(a.fullName || '').localeCompare(String(b.fullName || '')));
+
+      const ordinaryMembers = members.filter(member => !isDiscussionLeader(member));
+
+      if (!leaders.length) {
+        alert('No discussion leaders found. Set the Note field to DISCUSSION LEADER for each leader, then try again.');
+        return;
+      }
+
+      const shuffledMembers = shuffleArray(ordinaryMembers);
+
+      const leaderGroups = leaders.map((leader, index) => ({
+        className: `Sabbath School Group ${index + 1}`,
+        groupName: `Sabbath School Group ${index + 1} - ${leader.fullName || 'Discussion Leader'}`,
+        leaderId: leader.id,
+        leaders: [{
+          id: leader.id,
+          fullName: leader.fullName,
+          serial: leader.memberNumber || 'N/A',
+          gender: leader.gender || 'N/A',
+          phone: leader.phone || 'N/A'
+        }],
+        members: [{
+          id: leader.id,
+          fullName: leader.fullName,
+          memberNumber: leader.memberNumber,
+          gender: leader.gender,
+          phone: leader.phone,
+          role: 'Discussion Leader'
+        }]
+      }));
+
+      // Deal the pooled members round-robin to keep group sizes balanced.
+      shuffledMembers.forEach((member, index) => {
+        leaderGroups[index % leaderGroups.length].members.push({
+          id: member.id,
+          fullName: member.fullName,
+          memberNumber: member.memberNumber,
+          gender: member.gender,
+          phone: member.phone,
+          role: 'Member',
+          originalClass: member.memberClass || ''
+        });
+      });
+
+      generatedClasses = leaderGroups.map(group => {
+        const leader = group.members[0];
+        const ordinary = group.members.slice(1).sort((a, b) =>
+          String(a.fullName || '').localeCompare(String(b.fullName || ''))
+        );
+        return { ...group, members: [leader, ...ordinary] };
+      });
+
+      try {
+        localStorage.setItem(getStorageKey(), JSON.stringify(generatedClasses));
+      } catch (error) {
+        alert('Classes were generated but could not be saved in this browser: ' + error.message);
+        renderClasses();
+        return;
+      }
+
+      renderClasses();
+
+      alert(
+        `New Sabbath School groups generated successfully for ${getSelectedYear()}.\n` +
+        `${leaders.length} discussion leader group(s) created.\n` +
+        `${ordinaryMembers.length} ordinary member(s) from all registered classes were reshuffled.\n` +
+        `Discussion leaders remained fixed.`
+      );
+    }
+
     function clearYearClasses() {
-      if (!confirm(`Clear Sabbath School classes for ${getSelectedYear()}?`)) return;
+      if (!confirm(`Clear the saved Sabbath School class arrangement for ${getSelectedYear()}?`)) return;
 
       localStorage.removeItem(getStorageKey());
       generatedClasses = [];
@@ -400,15 +459,16 @@ function generateClasses() {
     }
 
     function renderStats() {
-      members = JSON.parse(localStorage.getItem('church_members') || '[]');
-
       const males = members.filter(member => cleanText(member.gender) === 'male').length;
       const females = members.filter(member => cleanText(member.gender) === 'female').length;
+      const classCount = new Set(
+        members.map(member => cleanText(member.memberClass)).filter(Boolean)
+      ).size;
 
       document.getElementById('totalMembers').textContent = members.length;
       document.getElementById('totalMales').textContent = males;
       document.getElementById('totalFemales').textContent = females;
-      document.getElementById('totalClasses').textContent = generatedClasses.length;
+      document.getElementById('totalClasses').textContent = classCount;
     }
 
     function renderLeaderBox(leaders) {
@@ -425,7 +485,9 @@ function generateClasses() {
         <div class="leader-box">
           <div class="leader-title">Discussion Leader(s)</div>
           <div class="leader-name">
-            ${leaders.map(leader => `${leader.fullName} (${leader.serial})`).join(', ')}
+            ${leaders.map(leader =>
+              `${escapeHtml(leader.fullName)} (${escapeHtml(leader.serial)})`
+            ).join(', ')}
           </div>
         </div>
       `;
@@ -434,14 +496,12 @@ function generateClasses() {
     function renderClasses() {
       renderStats();
 
-      const container = document.getElementById('classContainer');
-
       if (!generatedClasses.length) {
         container.innerHTML = `
           <div class="card">
             <p class="muted">
-              No class assignment found for ${getSelectedYear()}.
-              Click “Generate / Save Year Classes” to create one.
+              No saved class arrangement found for ${getSelectedYear()}.
+              Click “Generate / Save Year Classes” to create the arrangement from members' registered Sabbath School classes.
             </p>
           </div>
         `;
@@ -449,23 +509,18 @@ function generateClasses() {
       }
 
       container.innerHTML = generatedClasses.map(group => {
-        const maleCount = group.members.filter(member =>
-          cleanText(member.gender) === 'male'
-        ).length;
-
-        const femaleCount = group.members.filter(member =>
-          cleanText(member.gender) === 'female'
-        ).length;
+        const groupMembers = Array.isArray(group.members) ? group.members : [];
+        const maleCount = groupMembers.filter(member => cleanText(member.gender) === 'male').length;
+        const femaleCount = groupMembers.filter(member => cleanText(member.gender) === 'female').length;
 
         return `
           <div class="card">
-            <h3>${group.className}</h3>
-
+            <h3>${escapeHtml(group.groupName || group.className)}</h3>
             ${renderLeaderBox(group.leaders)}
 
             <p class="muted">
               Year: ${getSelectedYear()} |
-              Total Assigned: ${group.members.length} |
+              Total Assigned: ${groupMembers.length} |
               Male: ${maleCount} |
               Female: ${femaleCount}
             </p>
@@ -481,32 +536,28 @@ function generateClasses() {
                   <th>Role</th>
                 </tr>
               </thead>
-
               <tbody>
-                ${
-                  group.members.map((member, index) => {
-                    const leader = member.role === 'Discussion Leader';
-
-                    return `
-                      <tr class="${leader ? 'leader-row' : ''}">
-                        <td>${index + 1}</td>
-                        <td>${member.fullName || 'N/A'}</td>
-                        <td>${member.memberNumber || member.serial || 'N/A'}</td>
-                        <td>
-                          <span class="pill ${getGenderClass(member.gender)}">
-                            ${member.gender || 'N/A'}
-                          </span>
-                        </td>
-                        <td>${member.phone || 'N/A'}</td>
-                        <td>
-                          <span class="pill ${leader ? 'leader-role' : 'member-role'}">
-                            ${leader ? 'Discussion Leader' : 'Member'}
-                          </span>
-                        </td>
-                      </tr>
-                    `;
-                  }).join('')
-                }
+                ${groupMembers.map((member, index) => {
+                  const leader = member.role === 'Discussion Leader';
+                  return `
+                    <tr class="${leader ? 'leader-row' : ''}">
+                      <td>${index + 1}</td>
+                      <td>${escapeHtml(member.fullName || 'N/A')}</td>
+                      <td>${escapeHtml(member.memberNumber || member.serial || 'N/A')}</td>
+                      <td>
+                        <span class="pill ${getGenderClass(member.gender)}">
+                          ${escapeHtml(member.gender || 'N/A')}
+                        </span>
+                      </td>
+                      <td>${escapeHtml(member.phone || 'N/A')}</td>
+                      <td>
+                        <span class="pill ${leader ? 'leader-role' : 'member-role'}">
+                          ${leader ? 'Discussion Leader' : 'Member'}
+                        </span>
+                      </td>
+                    </tr>
+                  `;
+                }).join('')}
               </tbody>
             </table>
           </div>
@@ -514,9 +565,56 @@ function generateClasses() {
       }).join('');
     }
 
+    async function initializeSabbathSchool() {
+      container.innerHTML = '<div class="card"><p class="muted">Loading registered members from Supabase...</p></div>';
+
+      try {
+        await loadMembersFromSupabase();
+        loadYearClasses();
+      } catch (error) {
+        console.error('Sabbath School loading error:', error);
+        container.innerHTML = `
+          <div class="card">
+            <h3>Unable to load Sabbath School members</h3>
+            <p class="muted">${escapeHtml(error.message || 'An unexpected error occurred.')}</p>
+            <p class="muted" style="margin-top:8px;">
+              Return to the main church page, sign in with an approved administrator account, and reopen this page.
+            </p>
+            <button class="btn btn-primary" style="margin-top:12px;" onclick="initializeSabbathSchool()">
+              Try Again
+            </button>
+          </div>
+        `;
+        renderStats();
+      }
+    }
+
     document.getElementById('classYear').addEventListener('change', loadYearClasses);
 
-    loadYearClasses();
+    // Refresh registered members from Supabase before generating a new arrangement.
+    document.querySelector('.btn-success').addEventListener('click', async () => {
+      const button = document.querySelector('.btn-success');
+      const originalText = button.textContent;
+      button.disabled = true;
+      button.textContent = 'Loading members...';
+
+      try {
+        await loadMembersFromSupabase();
+        generateClasses();
+      } catch (error) {
+        alert('Could not refresh members from Supabase: ' + error.message);
+      } finally {
+        button.disabled = false;
+        button.textContent = originalText;
+      }
+    });
+
+    // The HTML button has an inline onclick. Remove it so the async handler above
+    // is the only Generate handler and does not run twice.
+    document.querySelector('.btn-success').removeAttribute('onclick');
+
+    window.initializeSabbathSchool = initializeSabbathSchool;
+    initializeSabbathSchool();
   </script>
 
 </body>
