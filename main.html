@@ -3446,51 +3446,133 @@ function renderSearchResults() {
       } catch (err) { alert('Could not update attendance: ' + err.message); }
     };
 
-    document.getElementById('openAttendanceBtn').addEventListener('click', async () => {
-      try {
-        const now = new Date().toISOString();
-        const { data, error } = await churchSupabase.from('attendance_sessions').upsert({
-          attendance_type: 'members', session_date: todayLocalDate(),
-          opened_at: now, closed_at: null, is_open: true
-        }, { onConflict: 'attendance_type,session_date' }).select().single();
-        if (error) throw error;
-        currentAttendanceSessionId = data.id;
-        await saveSetting('attendance_open', true);
-        attendanceOpen = true;
-        attendance = [];
-        await loadChurchData();
-      } catch (err) { alert('Could not open attendance: ' + err.message); }
-    });
+ 
+document.getElementById('openAttendanceBtn').addEventListener('click', async () => {
 
-    document.getElementById('closeAttendanceBtn').addEventListener('click', async () => {
-      if (!currentAttendanceSessionId) return alert('There is no attendance session for today.');
-      try {
-        const closedAt = new Date().toISOString();
-        const { error } = await churchSupabase.from('attendance_sessions')
-          .update({ is_open: false, closed_at: closedAt }).eq('id', currentAttendanceSessionId);
-        if (error) throw error;
-        await saveSetting('attendance_open', false);
-        attendanceOpen = false;
-        attendanceClosedAt = closedAt;
+  // Prevent opening an already-open session
+  if (attendanceOpen) {
+    return alert('Attendance is already open.');
+  }
 
-        // Save a permanent copy of the member list and attendance status before
-        // any later member edits or removals can affect the historical report.
-        let snapshotWarning = '';
-        try {
-          await saveAbsenteeHistorySnapshot(currentAttendanceSessionId);
-        } catch (snapshotError) {
-          console.error('Absentee snapshot could not be saved:', snapshotError);
-          snapshotWarning = '\nAttendance was closed, but the permanent history snapshot could not be saved. Run the supplied SQL and retry the snapshot.';
-        }
+  // Ask for confirmation before opening
+  const confirmed = confirm(
+    'CONFIRM OPENING ATTENDANCE\n\n' +
+    'Are you sure you want to open attendance for today?\n\n' +
+    'Members will be able to mark their attendance.'
+  );
 
-        await loadChurchData();
-        renderAbsentees();
-        if (document.getElementById('absentee-history').classList.contains('active')) {
-          await loadAbsenteeHistory();
-        }
-        alert('Attendance closed successfully.' + snapshotWarning);
-      } catch (err) { alert('Could not close attendance: ' + err.message); }
-    });
+  if (!confirmed) return;
+
+  try {
+    const now = new Date().toISOString();
+
+    const { data, error } = await churchSupabase
+      .from('attendance_sessions')
+      .upsert({
+        attendance_type: 'members',
+        session_date: todayLocalDate(),
+        opened_at: now,
+        closed_at: null,
+        is_open: true
+      }, {
+        onConflict: 'attendance_type,session_date'
+      })
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    currentAttendanceSessionId = data.id;
+
+    await saveSetting('attendance_open', true);
+
+    attendanceOpen = true;
+    attendance = [];
+
+    await loadChurchData();
+
+    alert('Attendance opened successfully. Members can now mark their attendance.');
+
+  } catch (err) {
+    alert('Could not open attendance: ' + err.message);
+  }
+});
+
+
+   
+document.getElementById('closeAttendanceBtn').addEventListener('click', async () => {
+
+  // Check whether an attendance session exists
+  if (!currentAttendanceSessionId) {
+    return alert('There is no attendance session for today.');
+  }
+
+  // Prevent closing an already-closed session
+  if (!attendanceOpen) {
+    return alert('Attendance is already closed.');
+  }
+
+  // Confirmation before closing attendance
+  const confirmed = confirm(
+    'CONFIRM CLOSING ATTENDANCE\n\n' +
+    'Are you sure you want to close attendance for today?\n\n' +
+    'Members will no longer be able to mark attendance.\n\n' +
+    'The attendance and absentee records will be finalized.'
+  );
+
+  // Cancel means no changes will be made
+  if (!confirmed) return;
+
+  try {
+    const closedAt = new Date().toISOString();
+
+    const { error } = await churchSupabase
+      .from('attendance_sessions')
+      .update({
+        is_open: false,
+        closed_at: closedAt
+      })
+      .eq('id', currentAttendanceSessionId);
+
+    if (error) throw error;
+
+    await saveSetting('attendance_open', false);
+
+    attendanceOpen = false;
+    attendanceClosedAt = closedAt;
+
+    // Save permanent attendance and absentee history
+    let snapshotWarning = '';
+
+    try {
+      await saveAbsenteeHistorySnapshot(currentAttendanceSessionId);
+    } catch (snapshotError) {
+      console.error(
+        'Absentee snapshot could not be saved:',
+        snapshotError
+      );
+
+      snapshotWarning =
+        '\nAttendance was closed, but the permanent history snapshot could not be saved. Run the supplied SQL and retry the snapshot.';
+    }
+
+    await loadChurchData();
+    renderAbsentees();
+
+    if (
+      document
+        .getElementById('absentee-history')
+        .classList.contains('active')
+    ) {
+      await loadAbsenteeHistory();
+    }
+
+    alert('Attendance closed successfully.' + snapshotWarning);
+
+  } catch (err) {
+    alert('Could not close attendance: ' + err.message);
+  }
+});
 
     document.getElementById('markAllPresentBtn').addEventListener('click', async () => {
       if (!attendanceOpen || !currentAttendanceSessionId) return alert('Open attendance first.');
